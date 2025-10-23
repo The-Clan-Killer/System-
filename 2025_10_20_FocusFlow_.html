@@ -1,0 +1,3981 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>FocusFlow — Track Where Your Time Truly Flows</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+  :root{
+    --bg:#0f1724; --card:#0b1220; --muted:#9aa7bf; --accent:#4f9cff; --accent-2:#7ce7b0;
+    --glass: rgba(255,255,255,0.03);
+    --radius:12px; font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+    color-scheme: dark;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%; margin:0; background:linear-gradient(180deg,#071024 0%, #0b1530 100%); color:#e6eef8;}
+  .container{max-width:1400px;margin:18px auto;padding:18px;}
+  header{display:flex;gap:12px;align-items:center;margin-bottom:16px;}
+  header h1{font-size:20px;margin:0}
+  header p{margin:0;color:var(--muted);font-size:13px}
+  .topbar{display:flex;gap:12px;align-items:center;margin-left:auto}
+  .card{background:var(--card);padding:14px;border-radius:var(--radius);box-shadow:0 6px 20px rgba(2,6,23,0.6);}
+  nav{display:flex;gap:8px;flex-wrap:wrap}
+  button, .tab{
+    background:transparent;border:1px solid transparent;padding:8px 12px;border-radius:10px;color:inherit;cursor:pointer;font-weight:600
+  }
+  .tab[aria-selected="true"]{background:linear-gradient(90deg,var(--accent),#2b8be2); color:#021021; box-shadow:0 6px 18px rgba(79,156,255,0.18)}
+  .grid{display:grid;gap:12px}
+  .two{grid-template-columns:1fr 360px}
+  .three{grid-template-columns:1fr 1fr}
+  .muted{color:var(--muted);font-size:13px}
+  .clock{font-size:28px;font-weight:700}
+  .big{font-size:20px;font-weight:700}
+  .small{font-size:13px}
+  input,select,textarea{background:var(--glass);border:1px solid rgba(255,255,255,0.03);padding:8px;border-radius:8px;color:inherit;width:100%}
+  footer{margin-top:18px;color:var(--muted);font-size:13px;text-align:center}
+  .pill{display:inline-block;padding:6px 10px;border-radius:999px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.03)}
+  .calendar{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+  .day{min-height:80px;padding:6px;border-radius:8px;background:rgba(255,255,255,0.01);border:1px solid rgba(255,255,255,0.02)}
+  .day .date{font-weight:700;font-size:13px}
+  .today{box-shadow:0 4px 18px rgba(124,206,255,0.06);border-color:rgba(79,156,255,0.25)}
+  .hours{font-weight:700}
+  .controls{display:flex;gap:8px;flex-wrap:wrap}
+  .list{max-height:260px;overflow:auto;padding-right:6px}
+  .activity-row{display:flex;gap:8px;align-items:center;justify-content:space-between;padding:8px;border-radius:8px}
+  .danger{background:linear-gradient(90deg,#ff7b7b,#ffb3b3);color:#2b0202}
+  .success{background:linear-gradient(90deg,#7ce7b0,#4fdc9e);color:#04271b}
+  .stat-box{display:flex;flex-direction:column;gap:6px}
+  canvas{width:100%;height:220px;background:transparent;border-radius:8px}
+  .footer-actions{display:flex;gap:8px;justify-content:center;margin-top:12px;flex-wrap:wrap}
+  .small-muted{font-size:12px;color:var(--muted)}
+  
+  /* Slot Analysis Styles */
+  .timeline {
+    display: grid;
+    grid-template-columns: 60px 1fr;
+    gap: 12px;
+    margin-top: 16px;
+  }
+  .hour-label {
+    text-align: right;
+    padding-top: 8px;
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .hour-slot {
+    min-height: 40px;
+    border-left: 2px solid rgba(255,255,255,0.05);
+    padding-left: 12px;
+    position: relative;
+  }
+  .slot-block {
+    background: linear-gradient(90deg, var(--accent), #2b8be2);
+    border-radius: 6px;
+    padding: 8px 12px;
+    margin-bottom: 4px;
+    font-size: 13px;
+    color: #021021;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.2s;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .slot-block:hover { transform: translateX(4px); }
+  .slot-work { background: linear-gradient(90deg, #7ce7b0, #4fdc9e); color: #04271b; }
+  .slot-class { background: linear-gradient(90deg, #ffd166, #f4a261); color: #3d2800; }
+  .slot-study { background: linear-gradient(90deg, #a78bfa, #8b5cf6); color: #1e0a3d; }
+  .slot-exercise { background: linear-gradient(90deg, #fb923c, #f97316); color: #3d1300; }
+  .slot-dining { background: linear-gradient(90deg, #f472b6, #ec4899); color: #3d0822; }
+  .slot-sleep { background: linear-gradient(90deg, #818cf8, #6366f1); color: #1e1b4b; }
+  .stat-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+  }
+  .stat-label { color: var(--muted); font-size: 14px; }
+  .stat-value { font-size: 18px; font-weight: 700; }
+  .heatmap {
+    display: grid;
+    grid-template-columns: repeat(24, 1fr);
+    gap: 4px;
+    margin-top: 16px;
+  }
+  .heatmap-cell {
+    aspect-ratio: 1;
+    border-radius: 4px;
+    background: rgba(255,255,255,0.02);
+    position: relative;
+    cursor: pointer;
+    transition: transform 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: 700;
+  }
+  .heatmap-cell:hover { transform: scale(1.1); }
+  .heatmap-label {
+    display: grid;
+    grid-template-columns: repeat(24, 1fr);
+    gap: 4px;
+    margin-bottom: 8px;
+    font-size: 11px;
+    color: var(--muted);
+    text-align: center;
+  }
+  .category-legend {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-top: 12px;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+  }
+  .legend-color {
+    width: 24px;
+    height: 24px;
+    border-radius: 4px;
+  }
+  .view-selector {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  .view-btn {
+    padding: 6px 12px;
+    font-size: 13px;
+    border-radius: 8px;
+    background: var(--glass);
+    border: 1px solid rgba(255,255,255,0.05);
+  }
+  .view-btn.active {
+    background: var(--accent);
+    color: #021021;
+  }
+
+  /* Finance Tab Styles */
+  .finance-view {
+      animation: fadeIn 0.3s ease-in-out;
+  }
+  @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+  }
+  .income { color: #22c55e; }
+  .expense { color: #ef4444; }
+  .progress-bar {
+      height: 12px;
+      background: var(--glass);
+      border-radius: 6px;
+      overflow: hidden;
+  }
+  .progress-bar-inner {
+      height: 100%;
+      background: var(--accent);
+      border-radius: 6px;
+      transition: width 0.5s;
+  }
+  .stat-card {
+      background: var(--glass);
+      padding: 12px;
+      border-radius: var(--radius);
+      text-align: center;
+  }
+  .transaction-row {
+      display: grid;
+      grid-template-columns: 50px 1fr 1fr 120px 80px;
+      gap: 12px;
+      align-items: center;
+      padding: 8px;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+  }
+  .transaction-row:last-child {
+      border-bottom: none;
+  }
+  
+  /* responsive */
+  @media (max-width:900px){ 
+    .two{grid-template-columns:1fr} 
+    .three{grid-template-columns:1fr}
+    .topbar{margin-top:8px} 
+    .card{padding:12px} 
+    .calendar .day{min-height:64px} 
+  }
+
+  /* Quick Links Custom Styles */
+  .quick-link-item { transition: opacity 0.3s ease, transform 0.3s ease; }
+  .quick-link-item.fade-in { animation: ql-fade-in 0.3s ease-out; }
+  .quick-link-item.fade-out { opacity: 0; transform: scale(0.95); }
+  @keyframes ql-fade-in {
+    from { opacity: 0; transform: scale(0.95); }
+    to { opacity: 1; transform: scale(1); }
+  }
+  .quick-link-item:hover .delete-quick-link { opacity: 1 !important; }
+  .bg-red-500 { background-color: #ef4444; }
+  .bg-blue-500 { background-color: #3b82f6; }
+  .bg-emerald-600 { background-color: #059669; }
+  .bg-white { background-color: #ffffff; }
+  .text-black { color: #000000 !important; }
+  .bg-indigo-600 { background-color: #4f46e5; }
+  .bg-yellow-500 { background-color: #eab308; }
+  .bg-amber-600 { background-color: #d97706; }
+  .bg-orange-600 { background-color: #ea580c; }
+  .bg-purple-600 { background-color: #9333ea; }
+  .bg-blue-600 { background-color: #2563eb; }
+  .bg-red-600 { background-color: #dc2626; }
+  .bg-green-600 { background-color: #16a34a; }
+  .bg-pink-600 { background-color: #db2777; }
+
+  /* Quest Styles */
+  .quest-card { transition: all 0.3s ease; border-left: 4px solid transparent; }
+  .quest-card.completed { border-left-color: var(--accent-2); opacity: 0.7; }
+  .quest-card.completed .quest-title { text-decoration: line-through; }
+  .quest-header { display: flex; justify-content: space-between; align-items: center; }
+  .quest-actions { display: flex; gap: 8px; }
+  .quest-description { margin: 8px 0; }
+  .sub-quest-list { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; }
+  .sub-quest-item { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+  .sub-quest-item input[type="checkbox"] { width: 16px; height: 16px; }
+  .sub-quest-item button.very-small { padding: 2px 6px; font-size: 10px; }
+
+  /* Evolve Tab Styles */
+  .evolve-grid { display: block; }
+  .evolve-nav { display: flex; flex-direction: row; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+  .xp-bar { height: 6px; background: var(--glass); border-radius: 3px; overflow: hidden; }
+  .xp-bar-inner { height: 100%; background: var(--accent-2); border-radius: 3px; }
+  .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 12px; }
+  .stat-item { background: var(--glass); padding: 10px; border-radius: 8px; text-align: center; }
+  .quest-type-pills { display: flex; gap: 8px; margin-bottom: 12px; }
+  .quest-type-pills button { font-size: 13px; }
+
+  /* Journal/Second Brain Styles */
+  .note-card { background: var(--glass); padding: 12px; border-radius: 8px; }
+  .note-card h4 { margin: 0 0 8px 0; }
+  .tag-pill { background: var(--accent); color: var(--card); padding: 4px 8px; border-radius: 99px; font-size: 11px; font-weight: 600; }
+
+  /* Habits Styles */
+  .habit-item { display: flex; justify-content: space-between; align-items: center; background: var(--glass); padding: 10px; border-radius: 8px; }
+  .habit-item .streak-counter { font-weight: 700; color: var(--accent-2); }
+</style>
+</head>
+<body>
+<div class="container" role="application" aria-label="FocusFlow Time Tracker">
+  <header>
+    <div>
+      <h1>FocusFlow</h1>
+      <p class="muted">FocusFlow – track where your time truly flows.</p>
+    </div>
+    <div class="topbar">
+      <div class="pill muted" id="currentDate">—</div>
+      <div class="pill muted" id="currentTime">—</div>
+      <div class="pill" id="death-clock-display" style="display: none;"></div>
+    </div>
+  </header>
+
+  <div class="card" style="margin-bottom:12px">
+    <nav role="tablist" aria-label="App Sections" id="tabs">
+      <button class="tab" role="tab" data-tab="dashboard" aria-selected="true">Dashboard</button>
+      <button class="tab" role="tab" data-tab="daylog">DayLog</button>
+      <button class="tab" role="tab" data-tab="evolve">Evolve</button>
+      <button class="tab" role="tab" data-tab="finance">Finance</button>
+      <button class="tab" role="tab" data-tab="settings">Settings</button>
+    </nav>
+  </div>
+
+  <main id="main" class="grid two" style="align-items:start">
+    <!-- Left column -->
+    <section id="panel" class="grid" style="gap:12px">
+      <!-- Dashboard -->
+      <div id="dashboard" class="card" role="region" aria-labelledby="dashTitle">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
+          <div>
+            <h2 id="dashTitle" class="big">Today</h2>
+            <div class="muted small" id="todayDateText">—</div>
+          </div>
+          <div style="text-align:right">
+            <div class="clock" id="todayClock">--:--:--</div>
+            <div class="muted small">Local time</div>
+          </div>
+        </div>
+
+        <div class="grid three" style="gap:10px;margin-top:12px">
+          <div class="card" style="padding:12px">
+            <div class="muted small">Clock</div>
+            <div style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap">
+              <select id="clockCategory" style="flex:1">
+                <option value="Work">Work</option>
+                <option value="Class">Class</option>
+                <option value="Study">Study</option>
+                <option value="Exercise">Exercise</option>
+                <option value="Dining">Dining</option>
+                <option value="Sleep">Sleep</option>
+                <option value="Other">Other</option>
+              </select>
+              <input id="otherCategory" type="text" placeholder="Custom" style="display:none;flex:1">
+              <button id="clockInBtn" class="success" aria-pressed="false">Clock In</button>
+              <button id="clockOutBtn" class="danger" aria-pressed="false">Clock Out</button>
+            </div>
+            <div style="margin-top:8px" class="small-muted">Last clock-in: <span id="lastIn">—</span></div>
+            <div class="small-muted">Last clock-out: <span id="lastOut">—</span></div>
+          </div>
+
+          <div class="card" style="padding:12px">
+            <div class="muted small">Today's totals</div>
+            <div style="margin-top:8px">
+              <div>Total worked: <span id="todayTotal" class="hours">0h 0m</span></div>
+              <div>Overtime: <span id="todayOT" class="hours">0h 0m</span></div>
+              <div>Leaves: <span id="todayLeave" class="hours">No</span></div>
+            </div>
+          </div>
+
+          <div class="card" style="padding:12px">
+            <div class="muted small">Quick activity</div>
+            <div style="margin-top:8px;display:flex;gap:6px">
+              <input id="activityTitle" placeholder="Activity (e.g., Emails)" />
+              <input id="activityDuration" placeholder="mins" style="width:86px" type="number" min="1"/>
+            </div>
+            <div style="margin-top:8px;display:flex;gap:6px">
+              <select id="activityMood" title="Mood">
+                <option value="1" style="color: #ff4d4d;">😡 Awful</option>
+                <option value="2" style="color: #ff7f7f;">😞 Bad</option>
+                <option value="3" style="color: #ffcc99;">😟 Poor</option>
+                <option value="4" style="color: #ffcc00;">😰 Stressed</option>
+                <option value="5" style="color: #ffccff;">🤒 Sick</option>
+                <option value="6" style="color: #cccccc;" selected>😐 Neutral</option>
+                <option value="7" style="color: #99ff99;">😌 Calm</option>
+                <option value="8" style="color: #66b3ff;">😊 Good</option>
+                <option value="9" style="color: #3399ff;">😃 Excited</option>
+                <option value="10" style="color: #00cc66;">🤩 Awesome</option>
+              </select>
+              <button id="addQuickActivity">Add</button>
+            </div>
+            <div class="small-muted" style="margin-top:8px">Add activity duration which goes into 24h allocation.</div>
+          </div>
+           <div id="quickLinks" class="card" style="padding:12px"></div>
+        </div>
+      </div>
+
+      <!-- DayLog -->
+      <div id="daylog" class="card" role="region" aria-labelledby="daylogTitle" style="display:none">
+        <div id="daylog-nav" class="view-selector" style="margin-bottom: 12px;">
+            <button class="view-btn active" data-view="calendar">Calendar</button>
+            <button class="view-btn" data-view="activities">Activities</button>
+            <button class="view-btn" data-view="leaves">Leaves</button>
+            <button class="view-btn" data-view="stats">Stats & Analysis</button>
+        </div>
+
+        <!-- Calendar -->
+        <div id="calendar" role="region" aria-labelledby="calendarTitle">
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <h2 id="calendarTitle" class="big">Calendar</h2>
+              <div style="display:flex;gap:6px;align-items:center">
+                <button id="prevMonth">‹</button>
+                <div id="monthLabel" class="muted small">—</div>
+                <button id="nextMonth">›</button>
+              </div>
+            </div>
+            <div style="margin-top:12px" class="muted small">Sun Mon Tue Wed Thu Fri Sat</div>
+            <div class="calendar" id="calendarGrid" style="margin-top:8px"></div>
+            <div style="margin-top:8px" class="small-muted">Click a day to view or add entries.</div>
+        </div>
+
+        <!-- Activities -->
+        <div id="activities" role="region" aria-labelledby="actTitle" style="display:none">
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <h2 id="actTitle" class="big">Activities & 24h Timeline</h2>
+              <div class="muted small">Aggregate time per activity & mood</div>
+            </div>
+            <div style="display:flex;gap:12px;margin-top:10px">
+              <div style="flex:1">
+                <div style="display:flex;gap:8px">
+                  <input id="actName" placeholder="Activity name (e.g., Meeting)" />
+                  <input id="actStart" type="time" />
+                  <input id="actEnd" type="time" />
+                  <select id="activitiesTabMood" title="Mood">
+                    <option value="1" style="color: #ff4d4d;">😡 Awful</option>
+                    <option value="2" style="color: #ff7f7f;">😞 Bad</option>
+                    <option value="3" style="color: #ffcc99;">😟 Poor</option>
+                    <option value="4" style="color: #ffcc00;">😰 Stressed</option>
+                    <option value="5" style="color: #ffccff;">🤒 Sick</option>
+                    <option value="6" style="color: #cccccc;" selected>😐 Neutral</option>
+                    <option value="7" style="color: #99ff99;">😌 Calm</option>
+                    <option value="8" style="color: #66b3ff;">😊 Good</option>
+                    <option value="9" style="color: #3399ff;">😃 Excited</option>
+                    <option value="10" style="color: #00cc66;">🤩 Awesome</option>
+                  </select>
+                  <button id="addActivity">Add</button>
+                </div>
+                <div class="list" style="margin-top:10px" id="activityList"></div>
+              </div>
+              <div style="width:360px">
+                <div class="card stat-box" style="padding:10px">
+                  <div class="muted small">24-hour allocation (today)</div>
+                  <canvas id="pieDay"></canvas>
+                  <div class="small-muted">Colored slices show time per activity. Below: totals & mood average.</div>
+                </div>
+              </div>
+            </div>
+        </div>
+
+        <!-- Leaves -->
+        <div id="leaves" role="region" aria-labelledby="leavesTitle" style="display:none">
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <h2 id="leavesTitle" class="big">Leaves</h2>
+              <div class="muted small">Add leaves and half-days</div>
+            </div>
+            <div style="display:flex;gap:8px;margin-top:10px">
+              <input id="leaveDate" type="date" />
+              <select id="leaveType"><option value="full">Full Day</option><option value="half">Half Day</option></select>
+              <input id="leaveNote" placeholder="Note (optional)" />
+              <button id="addLeaveBtn">Add</button>
+            </div>
+            <div style="margin-top:10px" class="list" id="leavesList"></div>
+        </div>
+
+        <!-- Stats & Analysis -->
+        <div id="stats" role="region" aria-labelledby="statsTitle" style="display:none">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+              <h2 id="statsTitle" class="big">Statistics & Slot Analysis</h2>
+              <div style="display:flex;gap:8px;align-items:center">
+                <input type="date" id="analysisDate" style="width:auto" />
+                <select id="statsRange">
+                  <option value="day">Today</option>
+                  <option value="week">This Week</option>
+                  <option value="month" selected>This Month</option>
+                </select>
+              </div>
+            </div>
+            <div class="view-selector">
+              <button class="view-btn active" data-view="summary">Summary</button>
+              <button class="view-btn" data-view="timeline">Timeline</button>
+              <button class="view-btn" data-view="heatmap">Heatmap</button>
+              <button class="view-btn" data-view="gaps">Gaps</button>
+            </div>
+            <div id="summaryView">
+              <div class="grid three" style="gap:12px;margin-bottom:12px">
+                <div class="card" style="padding:12px"> <div class="muted small">Total Time</div> <div class="big" id="totalTime">0h 0m</div> </div>
+                <div class="card" style="padding:12px"> <div class="muted small">Peak Hour</div> <div class="big" id="peakHour">—</div> </div>
+                <div class="card" style="padding:12px"> <div class="muted small">Utilization</div> <div class="big" id="utilization">0%</div> </div>
+              </div>
+              <div style="display:flex;gap:12px;margin-top:10px;flex-wrap:wrap">
+                <div style="flex:1;min-width:320px" class="card stat-box">
+                  <div class="muted small">Period Overview</div>
+                  <select id="statsRangeChart" style="margin-top:8px"> <option value="day">Today</option> <option value="week">This Week</option> <option value="month" selected>This Month</option> </select>
+                  <canvas id="pieRange" style="height:280px"></canvas>
+                  <div class="small-muted" id="statsSummary"></div>
+                </div>
+                <div style="width:320px" class="card stat-box">
+                  <div class="muted small">Mood trend (avg)</div>
+                  <canvas id="moodChart" style="height:220px"></canvas>
+                  <div class="small-muted" id="moodSummary"></div>
+                </div>
+              </div>
+            </div>
+            <div id="timelineView" style="display:none"> <div class="category-legend" id="legend"></div> <div class="timeline" id="timeline"></div> </div>
+            <div id="heatmapView" style="display:none"> <p class="muted">Intensity shows minutes of activity per hour</p> <div class="heatmap-label" id="heatmapLabels"></div> <div class="heatmap" id="heatmap"></div> </div>
+            <div id="gapsView" style="display:none"> <p class="muted">Untracked time periods (≥15 minutes)</p> <div id="gaps"></div> </div>
+        </div>
+      </div>
+
+      <!-- Settings -->
+      <div id="settings" class="card" role="region" aria-labelledby="settingsTitle" style="display:none">
+        <h2 id="settingsTitle" class="big">Settings</h2>
+        <div class="muted small">Preferences & backups</div>
+
+        <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+          <div style="flex:1;min-width:220px">
+            <label class="small-muted">Work hours per day (threshold for overtime)</label>
+            <input id="workHours" type="number" min="1" value="8"/>
+          </div>
+
+          <div style="flex:1;min-width:220px">
+            <label class="small-muted">Reminder times (HH:MM) — will notify if missing in/out at these times</label>
+            <input id="reminder1" type="time" value="11:00"/>
+            <input id="reminder2" type="time" value="18:00" style="margin-top:6px"/>
+          </div>
+        </div>
+
+        <div style="margin-top:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <button id="reqNotif">Enable Notifications</button>
+          <button id="exportBtn">Download Backup (JSON)</button>
+          <button id="importBtn">Import Backup (choose file)</button>
+          <button id="copyJson">Copy JSON to Clipboard</button>
+          <input id="importFile" type="file" accept="application/json" style="display:none" />
+        </div>
+
+        <div style="margin-top:8px" class="small-muted">Google Drive: For full cloud sync you'd need to enable Google Drive API and provide OAuth credentials. For now, use the download + upload method or connect Drive Desktop to sync the backup folder.</div>
+      </div><!-- Evolve -->\n      <div id="evolve" class="card" role="region" aria-labelledby="evolveTitle" style="display:none"></div>\n      <!-- Finance -->      <div id="finance" class="card" role="region" aria-labelledby="financeTitle" style="display:none">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+            <h2 id="financeTitle" class="big">Finance Tracker</h2>
+            <div id="finance-nav" class="view-selector">
+                <button class="view-btn active" data-view="finance-dashboard">Dashboard</button>
+                <button class="view-btn" data-view="finance-transactions">Transactions</button>
+                <button class="view-btn" data-view="finance-loans">Loans</button>
+                <button class="view-btn" data-view="finance-goals">Goals</button>
+                <button class="view-btn" data-view="finance-investments">Investments</button>
+            </div>
+        </div>
+
+        <!-- Finance Dashboard -->
+        <div id="finance-dashboard" class="finance-view">
+            <!-- Quick Overview -->
+            <div class="grid" style="grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 16px;">
+                <div class="stat-card">
+                    <div class="muted small">Total Income</div>
+                    <div id="dashboardIncome" class="big income" style="margin-top: 8px;">₹0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="muted small">Total Expenses</div>
+                    <div id="dashboardExpenses" class="big expense" style="margin-top: 8px;">₹0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="muted small">Net Balance</div>
+                    <div id="dashboardBalance" class="big" style="margin-top: 8px;">₹0</div>
+                </div>
+            </div>
+
+            <!-- Charts -->
+            <div class="grid two" style="gap: 16px; margin-bottom: 16px; align-items: start;">
+                <div class="card" style="padding: 16px;">
+                    <h3 class="big">Monthly Trend (Last 6 Months)</h3>
+                    <div id="monthlyTrend" style="height: 250px; margin-top: 12px;"></div>
+                </div>
+                <div class="card" style="padding: 16px;">
+                    <h3 class="big">Top Expense Categories</h3>
+                    <div style="position: relative; height: 250px; margin-top: 12px;">
+                        <canvas id="topExpensesChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Smart Insights -->
+            <div class="card" style="padding: 16px;">
+                <h3 class="big">Smart Insights</h3>
+                <div id="smartInsights" style="margin-top: 12px; font-size: 14px;" class="muted">
+                    <!-- Insights Rendered Here -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Finance Transactions -->
+        <div id="finance-transactions" class="finance-view" style="display:none;">
+            <div class="grid three" style="gap: 16px; grid-template-columns: 3fr 2fr;">
+                <!-- Left Side: Add & Filter -->
+                <div>
+                    <div class="card" style="padding: 16px; margin-bottom: 16px;">
+                        <h3 class="big">New Transaction</h3>
+                        <div class="grid" style="gap: 10px; margin-top: 12px;">
+                            <input type="date" id="transactionDate">
+                            <select id="transactionType" style="margin-top: 6px;">
+                                <option value="expense">Expense</option>
+                                <option value="income">Income</option>
+                            </select>
+                            <input type="number" id="transactionAmount" placeholder="Amount (₹)" style="margin-top: 6px;">
+                            <select id="transactionCategory" style="margin-top: 6px;">
+                                <!-- Options populated by JS -->
+                            </select>
+                            <input type="text" id="transactionHead" placeholder="Head / Description" style="margin-top: 6px;">
+                            <textarea id="transactionNotes" placeholder="Notes (Optional)" rows="2" style="margin-top: 6px;"></textarea>
+                            <button id="addTransactionBtn" class="success" style="margin-top: 8px;">Add Transaction</button>
+                        </div>
+                    </div>
+                    <div class="card" style="padding: 16px;">
+                        <h3 class="big">Filters</h3>
+                         <div class="controls" style="margin-top: 12px; display: grid; gap: 10px;">
+                            <select id="transactionTimeFilter">
+                                <option value="all">All Time</option>
+                                <option value="month">This Month</option>
+                            </select>
+                            <select id="transactionCategoryFilter">
+                                <option value="all">All Categories</option>
+                                 <!-- Options populated by JS -->
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right Side: Chart & List -->
+                <div>
+                    <div class="card" style="padding: 16px; margin-bottom: 16px;">
+                        <h3 class="big">Expense Breakdown</h3>
+                        <div style="position: relative; height: 220px; margin-top: 12px;">
+                            <canvas id="expensePieChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="card" style="padding: 16px;">
+                        <h3 class="big">Transaction History</h3>
+                        <div id="transactionList" class="list" style="max-height: 400px; margin-top: 12px;">
+                            <!-- Transactions will be rendered here by JS -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Finance Loans -->
+        <div id="finance-loans" class="finance-view" style="display:none;">
+            <div class="grid two" style="gap: 16px; grid-template-columns: 1fr 2fr;">
+                <!-- Left Side: Add & Summary -->
+                <div>
+                    <div class="card" style="padding: 16px; margin-bottom: 16px;">
+                        <h3 class="big">New Loan</h3>
+                        <div class="grid" style="gap: 10px; margin-top: 12px;">
+                            <select id="loanType">
+                                <option value="given">Loan Given (Receivable)</option>
+                                <option value="taken">Loan Taken (Payable)</option>
+                            </select>
+                            <input type="date" id="loanDate">
+                            <input type="text" id="loanPerson" placeholder="Person's Name">
+                            <input type="number" id="loanAmount" placeholder="Amount (₹)">
+                            <input type="text" id="loanPurpose" placeholder="Purpose / Description">
+                            <label class="small-muted" style="margin-top: 4px;">Expected Return Date</label>
+                            <input type="date" id="loanReturnDate">
+                            <button id="addLoanBtn" class="success" style="margin-top: 8px;">Add Loan</button>
+                        </div>
+                    </div>
+                    <div class="grid two" style="gap: 12px;">
+                         <div class="stat-card">
+                            <div class="muted small">Total Receivable</div>
+                            <div id="totalReceivable" class="big income" style="margin-top: 8px;">₹0</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="muted small">Total Payable</div>
+                            <div id="totalPayable" class="big expense" style="margin-top: 8px;">₹0</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right Side: Lists -->
+                <div>
+                    <div class="card" style="padding: 16px; margin-bottom: 16px;">
+                        <h3 class="big">Loans Given (Receivables)</h3>
+                        <div id="loansGivenList" class="list" style="max-height: 250px; margin-top: 12px;">
+                            <!-- Loans Given Rendered Here -->
+                        </div>
+                    </div>
+                    <div class="card" style="padding: 16px;">
+                        <h3 class="big">Loans Taken (Payables)</h3>
+                        <div id="loansTakenList" class="list" style="max-height: 250px; margin-top: 12px;">
+                            <!-- Loans Taken Rendered Here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Finance Goals -->
+        <div id="finance-goals" class="finance-view" style="display:none;">
+            <div class="grid two" style="gap: 16px; grid-template-columns: 1fr 2fr;">
+                <!-- Left Side: Add Goal -->
+                <div>
+                    <div class="card" style="padding: 16px;">
+                        <h3 class="big">New Financial Goal</h3>
+                        <div class="grid" style="gap: 10px; margin-top: 12px;">
+                            <input type="text" id="goalName" placeholder="Goal Name (e.g., New Car)">
+                            <input type="number" id="goalTargetAmount" placeholder="Target Amount (₹)">
+                            <label class="small-muted" style="margin-top: 4px;">Target Date</label>
+                            <input type="date" id="goalTargetDate">
+                            <button id="addGoalBtn" class="success" style="margin-top: 8px;">Set Goal</button>
+                        </div>
+                    </div>
+                </div>
+                <!-- Right Side: Goals List -->
+                <div>
+                    <div class="card" style="padding: 16px;">
+                        <h3 class="big">Active Goals</h3>
+                        <div id="goalsList" class="grid" style="gap: 12px; margin-top: 12px;">
+                            <!-- Goals Rendered Here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Finance Investments -->
+        <div id="finance-investments" class="finance-view" style="display:none;">
+            <!-- Summary -->
+            <div class="grid" style="grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px;">
+                <div class="stat-card">
+                    <div class="muted small">Active Investments</div>
+                    <div id="investmentsCount" class="big" style="margin-top: 8px;">0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="muted small">Monthly Commitment</div>
+                    <div id="investmentsMonthly" class="big" style="margin-top: 8px;">₹0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="muted small">Total Invested</div>
+                    <div id="investmentsTotal" class="big" style="margin-top: 8px;">₹0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="muted small">Expected Returns</div>
+                    <div id="investmentsReturns" class="big" style="margin-top: 8px;">₹0</div>
+                </div>
+            </div>
+
+            <div style="margin-bottom: 16px; text-align: right;">
+                <button id="addInvestmentBtn" class="success">Add New Investment</button>
+            </div>
+
+            <!-- Lists -->
+            <div class="grid two" style="gap: 16px; align-items: start;">
+                <div class="card" style="padding: 16px;">
+                    <h3 class="big">Recurring Deposits (RDs)</h3>
+                    <div id="rdList" class="grid" style="gap: 12px; margin-top: 12px;">
+                        <!-- RDs Rendered Here -->
+                    </div>
+                </div>
+                <div class="card" style="padding: 16px;">
+                    <h3 class="big">Systematic Investment Plans (SIPs)</h3>
+                    <div id="sipList" class="grid" style="gap: 12px; margin-top: 12px;">
+                        <!-- SIPs Rendered Here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Right column -->
+    <aside style="padding-left:12px">
+      <div class="card" style="margin-bottom:12px">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div>
+            <div class="muted small">Quick Stats</div>
+            <div style="margin-top:6px"><span class="big" id="monthTotal">0h</span> <div class="muted small">this month</div></div>
+          </div>
+          <div style="text-align:right">
+            <div class="muted small">Overtime</div>
+            <div class="big" id="monthOT">0h</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:12px">
+        <div class="muted small">Today Activities</div>
+        <div id="todayActivities" class="list" style="margin-top:8px"></div>
+      </div>
+
+      <div class="card">
+        <div class="muted small">Data</div>
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <button id="backupNow">Backup Now</button>
+          <button id="clearData" class="danger">Reset Data</button>
+        </div>
+        <div class="small-muted" style="margin-top:8px">Reset deletes local data. Use export before reset if you want a copy.</div>
+      </div>
+    </aside>
+  </main>
+
+  <footer>
+    <div class="small-muted">Built for single-user local use. Enhanced with comprehensive time slot analysis and visualization.</div>
+  </footer>
+</div>
+
+<script>
+/* ========================
+   Data model & persistence
+   ======================== */
+const STORAGE_KEY = 'focusFlow_v1';
+const defaultState = {
+  settings:{workHours:8, reminders:['11:00','18:00']},
+  clocks: {}, // dateStr -> array of {in: ISO, out: ISO, category: 'Work'}
+  activities: {}, // dateStr -> [{id,title,start, end, mins, mood}]
+  leaves: {}, // dateStr -> {type:'full'|'half', note},
+  finance: {
+    transactions: [], // {id, date, type:'income'|'expense', amount, category, head, notes}
+    loans: [], // {id, date, type:'given'|'taken', amount, person, purpose, returnDate, settled:false}
+    goals: [], // {id, name, targetAmount, currentAmount, targetDate}
+    investments: {
+      rds: [], // {id, name, monthlyAmount, frequency, startDate, maturityDate, interestRate, bank, notes, status:'active'|'closed'}
+      sips: [] // {id, name, monthlyAmount, frequency, startDate, targetDate, expectedReturnRate, amc, notes, status:'active'|'closed'}
+    }
+  },
+  activeQuests: [], // { id, name, stat, xp, type, description }
+  completedQuests: [], // { ...quest, completedAt }
+  habits: [], // { id, name, stat, xp, type, streak, lastCompleted }
+  journalEntries: [], // { id, timestamp, content, wordCount }
+  tags: {}, // { tagName: count }
+  secondBrainNotes: [], // { id, title, content, paraCategory, tags, timestamp }
+  deathClock: {
+      questName: 'Define Your Ultimate Goal',
+      target: null,
+      paused: true,
+      intervalId: null
+  },
+  playerData: {
+      habits: [],
+      totalXP: 0,
+      level: 1,
+      dailyXpGained: { date: new Date().toISOString().split('T')[0], amount: 0 },
+      statXP: {
+          work: 0, learning: 0, finance: 0, health: 0, mindset: 0,
+          relationships: 0, discipline: 0, purpose: 0
+      },
+      stats: { // For tracking unlock conditions, not for the radar chart
+          boss_quests_completed: 0,
+          failed_quests_count: 0,
+          quests_completed_count: 0,
+          discipline_quests_completed: 0,
+          death_clock_completed: false,
+          financial_goals_completed: 0
+      }
+  },
+  quickLinks: [
+    { name: "YouTube", url: "https://youtube.com", color: "bg-red-500" },
+    { name: "Gmail", url: "https://gmail.com", color: "bg-blue-500" },
+    { name: "ChatGPT", url: "https://chat.openai.com", color: "bg-emerald-600" },
+    { name: "Notion", url: "https://notion.so", color: "bg-white text-black" },
+    { name: "DeepSeek", url: "https://chat.deepseek.com", color: "bg-indigo-600" },
+    { name: "Gemini", url: "https://gemini.google.com/app", color: "bg-yellow-500" },
+    { name: "Claude", url: "https://claude.ai/new", color: "bg-amber-600" },
+    { name: "Brave", url: "https://search.brave.com", color: "bg-orange-600" },
+    { name: "PPT", url: "https://gamma.app", color: "bg-purple-600" },
+  ],
+  createdAt: new Date().toISOString()
+};
+
+let state = loadState();
+
+function loadState(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(!raw) return structuredClone(defaultState);
+    
+    const loadedState = JSON.parse(raw);
+    
+    // Ensure finance object and its nested arrays exist (for backward compatibility)
+    loadedState.finance = loadedState.finance || {};
+    loadedState.finance.transactions = loadedState.finance.transactions || [];
+    loadedState.finance.loans = loadedState.finance.loans || [];
+    loadedState.finance.goals = loadedState.finance.goals || [];
+    loadedState.finance.investments = loadedState.finance.investments || {};
+    loadedState.finance.investments.rds = loadedState.finance.investments.rds || [];
+    loadedState.finance.investments.sips = loadedState.finance.investments.sips || [];
+    loadedState.quickLinks = loadedState.quickLinks || defaultState.quickLinks;
+    
+    // Deep merge playerData to ensure nested objects exist
+    loadedState.playerData = Object.assign({}, defaultState.playerData, loadedState.playerData);
+    loadedState.playerData.stats = Object.assign({}, defaultState.playerData.stats, loadedState.playerData.stats);
+    loadedState.playerData.statXP = Object.assign({}, defaultState.playerData.statXP, loadedState.playerData.statXP);
+
+    // Initialize all other new top-level state properties
+    loadedState.activeQuests = loadedState.activeQuests || [];
+    loadedState.completedQuests = loadedState.completedQuests || [];
+    loadedState.habits = loadedState.habits || [];
+    loadedState.journalEntries = loadedState.journalEntries || [];
+    loadedState.tags = loadedState.tags || {};
+    loadedState.secondBrainNotes = loadedState.secondBrainNotes || [];
+    loadedState.deathClock = Object.assign({}, defaultState.deathClock, loadedState.deathClock);
+
+    return Object.assign(structuredClone(defaultState), loadedState);
+  }catch(e){
+    console.error('Failed to load state', e);
+    return structuredClone(defaultState);
+  }
+}
+
+function saveState(){
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  renderAll();
+}
+
+/* ========================
+   Helpers
+   ======================== */
+function dateKeyFromISO(iso){
+  const d = new Date(iso);
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+function nowISO(){ return new Date().toISOString(); }
+function fmtTime(iso){ if(!iso) return '—'; const d=new Date(iso); return d.toLocaleTimeString(); }
+function fmtHM(totalMinutes){
+  const h = Math.floor(totalMinutes/60); const m = totalMinutes%60;
+  return `${h}h ${m}m`;
+}
+function parseHMToMinutes(hm){
+  if(!hm) return null;
+  const [hh,mm] = hm.split(':').map(Number);
+  return hh*60 + (mm||0);
+}
+function minutesBetween(startISO, endISO){
+  const a = new Date(startISO), b = new Date(endISO);
+  const diff = Math.max(0, Math.round((b-a)/60000));
+  return diff;
+}
+function fmtCurrency(amount) {
+  // Format number to Indian Rupees
+  return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(amount || 0);
+}
+
+function calculateMonthsSince(startDateString) {
+  if (!startDateString) return 0;
+  const start = new Date(startDateString);
+  const today = new Date();
+  if (isNaN(start.getTime()) || start > today) return 0;
+
+  const yearDiff = today.getFullYear() - start.getFullYear();
+  const monthDiff = today.getMonth() - start.getMonth();
+  
+  let totalMonths = yearDiff * 12 + monthDiff;
+
+  // If the current day of the month is less than the start day, the last month isn't "full" yet.
+  if (today.getDate() < start.getDate()) {
+    totalMonths--;
+  }
+
+  // Return the number of full months passed, ensuring it's not negative.
+  // Add 1 to include the starting month itself in the count.
+  return Math.max(0, totalMonths + 1);
+}
+
+function calculateMaturityValue(monthlyInvestment, annualRate, tenureInMonths) {
+  if (!monthlyInvestment || !annualRate || !tenureInMonths) return 0;
+
+  const P = parseFloat(monthlyInvestment);
+  const r = parseFloat(annualRate) / 100; // Annual rate as a decimal
+  const n = 4; // Compounded quarterly
+  const t = parseFloat(tenureInMonths) / 12; // Tenure in years
+
+  // The formula for the future value of a recurring deposit (compounded quarterly)
+  // A = P * [((1 + r/n)^(n*t)) - 1] / (r/n)
+  // This formula is for a single deposit. For a recurring deposit, it's more complex.
+  // The correct formula is: A = P * ( ( (1 + i)^m - 1 ) / i )
+  // where i is the interest rate per period and m is the number of periods.
+  
+  const i = r / n; // Interest rate per quarter
+  const m = tenureInMonths; // Number of monthly installments
+
+  // This standard formula assumes the interest is calculated on a monthly basis, not quarterly.
+  // Let's use the standard RD formula where compounding frequency matches payment frequency.
+  // A = P * [((1 + R/12)^(N)) - 1] / (R/12)
+  // Let's use the quarterly compounding formula which is more complex.
+  // M = P * (((1 + i)^(n*t) - 1) / i) where i = r/n
+  
+  const numQuarters = tenureInMonths / 3;
+  let maturity = 0;
+
+  // Since interest is compounded quarterly, we can iterate through each quarter
+  for (let q = 1; q <= numQuarters; q++) {
+    // For each quarter, the amount is the sum of principals + interest earned
+    let principal = P * 3 * q;
+    let interest = principal * (r / 4);
+    maturity += (P * 3) + interest;
+  }
+  
+  // A more accurate formula for quarterly compounding of monthly deposits:
+  // A = P * [((1 + r/4)^(n*t) - 1) / (1 - (1+r/4)^(-1/3))]
+  // Let's use a simplified iterative approach for clarity and correctness.
+  
+  let totalValue = 0;
+  for (let month = 1; month <= tenureInMonths; month++) {
+    totalValue += P; // Add the monthly deposit
+    // If it's the end of a quarter, add interest
+    if (month % 3 === 0) {
+      totalValue *= (1 + r / 4);
+    }
+  }
+
+  // The above is still not quite right.
+  // The standard formula for quarterly compounding of a monthly RD is:
+  // M = P * [((1 + r/400)^nq - 1) / (1 - (1 + r/400)^(-1/3))]
+  // Let's try to implement this one.
+  const quarterlyRate = annualRate / 400;
+  const nq = tenureInMonths / 3;
+  
+  const numerator = Math.pow(1 + quarterlyRate, nq) - 1;
+  const denominator = 1 - Math.pow(1 + quarterlyRate, -1/3);
+  
+  if (denominator === 0) return P * tenureInMonths; // Avoid division by zero
+
+  const maturityAmount = P * (numerator / denominator);
+  return maturityAmount;
+}
+
+
+/* ========================
+   Clock In / Out logic
+   ======================== */
+function clockIn(){
+  const iso = nowISO();
+  const key = dateKeyFromISO(iso);
+  state.clocks[key] = state.clocks[key] || [];
+  const last = state.clocks[key][state.clocks[key].length-1];
+  if(last && !last.out){
+    alert('You are already clocked in. Use Clock Out first.');
+    return;
+  }
+  const categoryEl = document.getElementById('clockCategory');
+  let category = categoryEl.value;
+  if (category === 'Other') {
+    const otherCategoryEl = document.getElementById('otherCategory');
+    category = otherCategoryEl.value.trim() || 'Other';
+  }
+  state.clocks[key].push({in:iso, out:null, category: category});
+  saveState();
+}
+function clockOut(){
+  const iso = nowISO();
+  const key = dateKeyFromISO(iso);
+  
+  // First check current day
+  state.clocks[key] = state.clocks[key] || [];
+  let last = state.clocks[key][state.clocks[key].length-1];
+  
+  // If no open clock-in on current day, check previous day (for overnight entries like sleep)
+  if(!last || last.out){
+    const yesterday = new Date(new Date(key).getTime() - 24*60*60*1000);
+    const yesterdayKey = dateKeyFromISO(yesterday.toISOString());
+    if(state.clocks[yesterdayKey] && state.clocks[yesterdayKey].length > 0) {
+      const lastYesterday = state.clocks[yesterdayKey][state.clocks[yesterdayKey].length-1];
+      if(lastYesterday && !lastYesterday.out) {
+        // Found open clock-in from yesterday, close it
+        lastYesterday.out = iso;
+        saveState();
+        return;
+      }
+    }
+    alert('You are not clocked in. Use Clock In first.');
+    return;
+  }
+  last.out = iso;
+  saveState();
+}
+
+/* ========================
+   Activities
+   ======================== */
+function addQuickActivity(){
+  const title = document.getElementById('activityTitle').value.trim();
+  const mins = parseInt(document.getElementById('activityDuration').value||0,10);
+  const mood = parseInt(document.getElementById('activityMood').value,10);
+  if(!title || !mins) { alert('Fill activity and mins'); return; }
+  const key = dateKeyFromISO(nowISO());
+  const id = 'a'+Date.now();
+  state.activities[key] = state.activities[key]||[];
+  const start = null, end = null;
+  state.activities[key].push({id,title,start,end,mins,mood});
+  document.getElementById('activityTitle').value='';
+  document.getElementById('activityDuration').value='';
+  saveState();
+}
+
+function addActivityFromForm(){
+  const name = document.getElementById('actName').value.trim();
+  const start = document.getElementById('actStart').value;
+  const end = document.getElementById('actEnd').value;
+  const mood = parseInt(document.getElementById('activitiesTabMood').value,10);
+  if(!name || !start || !end){ alert('Provide name, start and end'); return; }
+  const mins = computeMinutesFromTimes(start,end);
+  if(mins<=0){ alert('End must be after start (same day assumed).'); return; }
+  const key = dateKeyFromISO(nowISO());
+  const id = 'a'+Date.now();
+  state.activities[key] = state.activities[key]||[];
+  state.activities[key].push({id,title:name,start,end,mins,mood});
+  document.getElementById('actName').value=''; document.getElementById('actStart').value=''; document.getElementById('actEnd').value='';
+  saveState();
+}
+function computeMinutesFromTimes(start, end){
+  const s = start.split(':').map(Number), e = end.split(':').map(Number);
+  const ms = s[0]*60 + (s[1]||0), me = e[0]*60 + (e[1]||0);
+  if(me<ms) return me + 24*60 - ms;
+  return me-ms;
+}
+function removeActivity(dayKey, id){
+  state.activities[dayKey] = (state.activities[dayKey]||[]).filter(a => a.id !== id);
+  saveState();
+}
+
+/* ========================
+   Leaves
+   ======================== */
+function addLeave(){
+  const date = document.getElementById('leaveDate').value;
+  const type = document.getElementById('leaveType').value;
+  const note = document.getElementById('leaveNote').value.trim();
+  if(!date) { alert('Choose date'); return; }
+  state.leaves[date] = {type,note};
+  saveState();
+}
+function removeLeave(day){ delete state.leaves[day]; saveState(); }
+
+/* ========================
+   Calculations & aggregations
+   ======================== */
+function calculateMinutesForDay(dayKey, filter = 'all') {
+  const workKeyword = 'work';
+  const intervals = [];
+  let durationOnlyMins = 0;
+
+  // 1. Collect all timed intervals
+  (state.clocks[dayKey] || []).forEach(c => {
+    const category = (c.category || '').toLowerCase();
+    if (filter === 'all' || category.includes(workKeyword)) {
+      intervals.push({
+        start: new Date(c.in).getTime(),
+        end: c.out ? new Date(c.out).getTime() : new Date().getTime()
+      });
+    }
+  });
+
+  (state.activities[dayKey] || []).forEach(a => {
+    if (a.start && a.end) {
+      const title = (a.title || a.name || '').toLowerCase();
+      if (filter === 'all' || title.includes(workKeyword)) {
+        const day = new Date(dayKey + 'T00:00:00Z');
+        const [startH, startM] = a.start.split(':').map(Number);
+        const [endH, endM] = a.end.split(':').map(Number);
+        const startDate = new Date(Date.UTC(day.getUTCFullYear(), day.getUTCMonth(), day.getUTCDate(), startH, startM));
+        const endDate = new Date(Date.UTC(day.getUTCFullYear(), day.getUTCMonth(), day.getUTCDate(), endH, endM));
+        if (endDate < startDate) { endDate.setDate(endDate.getDate() + 1); }
+        intervals.push({ start: startDate.getTime(), end: endDate.getTime() });
+      }
+    }
+  });
+  
+  // 2. Collect duration-only minutes
+  (state.activities[dayKey] || []).forEach(a => {
+    if (a.mins && !a.start) {
+        const title = (a.title || a.name || '').toLowerCase();
+        if (filter === 'all' || title.includes(workKeyword)) {
+            durationOnlyMins += a.mins;
+        }
+    }
+  });
+
+  if (intervals.length === 0) {
+    return durationOnlyMins;
+  }
+
+  // 3. Merge overlapping intervals
+  intervals.sort((a, b) => a.start - b.start);
+  const merged = [intervals[0]];
+  for (let i = 1; i < intervals.length; i++) {
+    const last = merged[merged.length - 1];
+    const current = intervals[i];
+    if (current.start < last.end) {
+      last.end = Math.max(last.end, current.end);
+    } else {
+      merged.push(current);
+    }
+  }
+
+  // 4. Calculate total minutes from merged intervals and add duration-only minutes
+  const mergedMins = merged.reduce((sum, interval) => sum + (interval.end - interval.start), 0) / 60000;
+  
+  return Math.round(mergedMins + durationOnlyMins);
+}
+
+function overtimeMinutes(mins, thresholdHours){
+  const thr = (thresholdHours||state.settings.workHours||8)*60;
+  return Math.max(0, mins - thr);
+}
+
+/* ========================
+   Quick Links
+   ======================== */
+
+function renderQuickLinks() {
+  const container = document.getElementById('quickLinks');
+  if (!container) return;
+
+  const quickLinks = state.quickLinks || [];
+
+  container.innerHTML = '';
+
+  const header = document.createElement('div');
+  header.style.display = 'flex';
+  header.style.justifyContent = 'space-between';
+  header.style.alignItems = 'center';
+  header.style.marginBottom = '12px';
+
+  const title = document.createElement('h2');
+  title.className = 'muted small';
+  title.textContent = 'Quick Links';
+  header.appendChild(title);
+
+  const count = document.createElement('span');
+  count.className = 'muted small';
+  count.textContent = `(${quickLinks.length}/9)`;
+  header.appendChild(count);
+
+  container.appendChild(header);
+
+  const grid = document.createElement('div');
+  grid.style.display = 'grid';
+  grid.style.gridTemplateColumns = 'repeat(3, 1fr)';
+  grid.style.gap = '6px';
+  grid.style.marginBottom = '12px';
+
+  quickLinks.forEach((link, index) => {
+    const linkWrapper = document.createElement('div');
+    linkWrapper.style.position = 'relative';
+    linkWrapper.className = 'quick-link-item fade-in';
+
+    const a = document.createElement('a');
+    a.href = link.url;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    a.className = `${link.color} block`;
+    a.textContent = link.name;
+    a.style.cssText = `
+      padding: 6px; border-radius: 8px; text-align: center;
+      font-weight: 600; font-size: 12px; text-decoration: none;
+      color: inherit; transition: opacity 0.2s;
+    `;
+    a.onmouseover = () => a.style.opacity = '0.8';
+    a.onmouseout = () => a.style.opacity = '1';
+
+
+    const deleteBtn = document.createElement('button');
+    deleteBtn.textContent = '✕';
+    deleteBtn.className = 'delete-quick-link';
+    deleteBtn.style.cssText = `
+      position: absolute; top: -8px; right: -8px;
+      background: #dc2626; color: white; border-radius: 9999px;
+      width: 20px; height: 20px; border: none; cursor: pointer;
+      opacity: 0; transition: opacity 0.2s; display: flex;
+      align-items: center; justify-content: center; font-size: 12px;
+    `;
+    deleteBtn.onclick = () => deleteQuickLink(index);
+
+    linkWrapper.appendChild(a);
+    linkWrapper.appendChild(deleteBtn);
+    grid.appendChild(linkWrapper);
+  });
+
+  container.appendChild(grid);
+
+  const addSection = document.createElement('div');
+  addSection.style.display = 'flex';
+  addSection.style.flexDirection = 'column';
+  addSection.style.gap = '6px';
+  
+  const inputsWrapper = document.createElement('div');
+  inputsWrapper.style.display = 'flex';
+  inputsWrapper.style.gap = '6px';
+  
+  const nameInput = document.createElement('input');
+  nameInput.type = 'text';
+  nameInput.placeholder = 'Name';
+  nameInput.id = 'newLinkName';
+  
+  const urlInput = document.createElement('input');
+  urlInput.type = 'url';
+  urlInput.placeholder = 'URL';
+  urlInput.id = 'newLinkUrl';
+  
+  inputsWrapper.appendChild(nameInput);
+  inputsWrapper.appendChild(urlInput);
+  
+  const bottomRow = document.createElement('div');
+  bottomRow.style.display = 'flex';
+  bottomRow.style.gap = '6px';
+  bottomRow.style.alignItems = 'center';
+
+  const colorSelect = document.createElement('select');
+  colorSelect.id = 'newLinkColor';
+  const colors = [
+    { name: "Blue", value: "bg-blue-600" }, { name: "Red", value: "bg-red-600" },
+    { name: "Green", value: "bg-green-600" }, { name: "Purple", value: "bg-purple-600" },
+    { name: "Orange", value: "bg-orange-600" }, { name: "Pink", value: "bg-pink-600" },
+    { name: "Indigo", value: "bg-indigo-600" }, { name: "Emerald", value: "bg-emerald-600" },
+  ];
+  colors.forEach(c => {
+    const option = document.createElement('option');
+    option.value = c.value;
+    option.textContent = c.name;
+    colorSelect.appendChild(option);
+  });
+  colorSelect.value = 'bg-blue-600';
+
+  const addBtn = document.createElement('button');
+  addBtn.textContent = 'Add';
+  addBtn.onclick = addQuickLink;
+
+  bottomRow.appendChild(colorSelect);
+  bottomRow.appendChild(addBtn);
+
+  addSection.appendChild(inputsWrapper);
+  addSection.appendChild(bottomRow);
+
+  container.appendChild(addSection);
+}
+
+function addQuickLink() {
+  const nameInput = document.getElementById('newLinkName');
+  const urlInput = document.getElementById('newLinkUrl');
+  const colorSelect = document.getElementById('newLinkColor');
+  const name = nameInput.value.trim();
+  const url = urlInput.value.trim();
+  const color = colorSelect.value;
+  if (!name || !url) return;
+  if (state.quickLinks.length >= 9) {
+    alert("You can only have 9 quick links. Delete one to add another.");
+    return;
+  }
+  state.quickLinks.push({ name, url, color });
+  nameInput.value = '';
+  urlInput.value = '';
+  saveState();
+}
+
+function deleteQuickLink(index) {
+  const quickLinksContainer = document.getElementById('quickLinks');
+  const linkItems = quickLinksContainer.querySelectorAll('.quick-link-item');
+  if (linkItems[index]) {
+    linkItems[index].classList.add('fade-out');
+    setTimeout(() => {
+      state.quickLinks = state.quickLinks.filter((_, i) => i !== index);
+      saveState();
+    }, 300);
+  }
+}
+
+/* ========================
+   Rendering
+   ======================== */
+const tabs = document.getElementById('tabs');
+tabs.addEventListener('click', (e)=>{ if(e.target.dataset.tab) switchTab(e.target.dataset.tab); });
+
+let activeDayLogTab = 'calendar';
+
+function switchTab(name){
+  document.querySelectorAll('#tabs .tab').forEach(t=> t.setAttribute('aria-selected', t.dataset.tab===name ? 'true' : 'false'));
+  // Hide all main tabs first
+  ['dashboard', 'daylog', 'evolve', 'finance', 'settings'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = 'none';
+  });
+
+  // Show the selected main tab
+  const selectedTab = document.getElementById(name);
+  if (selectedTab) selectedTab.style.display = '';
+
+  if(name === 'daylog') {
+    renderDayLog();
+  }
+  if(name==='finance') renderFinance();
+  if(name==='evolve') renderEvolve();
+}
+
+function switchDayLogTab(name) {
+    activeDayLogTab = name;
+    renderDayLog();
+}
+
+function renderDayLog() {
+    document.querySelectorAll('#daylog-nav .view-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.view === activeDayLogTab);
+    });
+
+    ['calendar', 'activities', 'leaves', 'stats'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.style.display = id === activeDayLogTab ? '' : 'none';
+    });
+
+    switch(activeDayLogTab) {
+        case 'calendar': renderCalendar(); break;
+        case 'activities': renderActivities(); break;
+        case 'leaves': renderLeaves(); break;
+        case 'stats': renderStats(); renderSlotAnalysis(); break;
+    }
+}
+
+function renderAll(){
+  renderHeaderClock();
+  renderDashboard();
+   renderQuickLinks();
+  renderRightPanel();
+  renderTodayActivities();
+  renderCalendar();
+  renderActivities();
+  renderLeaves();
+  renderStats();
+  // Check if the finance tab is active before rendering, to avoid errors on first load
+  if (document.getElementById('finance').style.display !== 'none') {
+    renderFinance();
+  }
+  if (document.getElementById('evolve').style.display !== 'none') {
+    renderEvolve();
+  }
+  document.getElementById('workHours').value = state.settings.workHours || 8;
+  (state.settings.reminders||[]).forEach((r,i)=>{
+    if(i===0) document.getElementById('reminder1').value = r;
+    if(i===1) document.getElementById('reminder2').value = r;
+  });
+}
+
+/* Header clock */
+function renderHeaderClock(){
+  const now = new Date();
+  document.getElementById('currentDate').textContent = now.toLocaleDateString();
+  document.getElementById('currentTime').textContent = now.toLocaleTimeString();
+  document.getElementById('todayClock').textContent = now.toLocaleTimeString();
+  document.getElementById('todayDateText').textContent = now.toLocaleDateString();
+}
+setInterval(renderHeaderClock,1000);
+
+/* Dashboard */
+function renderDashboard(){
+  const key = dateKeyFromISO(nowISO());
+  document.getElementById('lastIn').textContent = getLastClockTime(key,'in');
+  document.getElementById('lastOut').textContent = getLastClockTime(key,'out');
+  const mins = calculateMinutesForDay(key, 'work');
+  document.getElementById('todayTotal').textContent = fmtHM(mins);
+  const ot = overtimeMinutes(mins, state.settings.workHours);
+  document.getElementById('todayOT').textContent = fmtHM(ot);
+  document.getElementById('todayLeave').textContent = state.leaves[key] ? (state.leaves[key].type==='half' ? 'Half Day' : 'Full Day') : 'No';
+}
+function getLastClockTime(dayKey, which){
+  const arr = state.clocks[dayKey]||[];
+  if(!arr.length) return '—';
+  const last = arr[arr.length-1];
+  return which==='in' ? fmtTime(last.in) : fmtTime(last.out);
+}
+
+/* Right panel summary */
+function renderRightPanel(){
+  const monthKey = (()=>{ const d = new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); })();
+  let total=0, ot=0;
+  const allKeys = new Set([...Object.keys(state.clocks), ...Object.keys(state.activities)]);
+  allKeys.forEach(day=>{
+    if(day.startsWith(monthKey)){
+      const workMins = calculateMinutesForDay(day, 'work');
+      total += workMins;
+      ot += overtimeMinutes(workMins, state.settings.workHours);
+    }
+  });
+  document.getElementById('monthTotal').textContent = fmtHM(total);
+  document.getElementById('monthOT').textContent = fmtHM(ot);
+}
+
+/* Today activities list */
+function renderTodayActivities(){
+  const key = dateKeyFromISO(nowISO());
+  const container = document.getElementById('todayActivities');
+  container.innerHTML = '';
+  const clockEntries = (state.clocks[key] || []).map(c => ({
+    type: 'clock',
+    time: new Date(c.in),
+    ...c
+  }));
+  const activityEntries = (state.activities[key] || []).map(a => ({
+    type: 'activity',
+    time: new Date(parseInt(a.id.substring(1))),
+    ...a
+  }));
+  const allEntries = [...clockEntries, ...activityEntries].sort((a, b) => a.time - b.time);
+
+  if (!allEntries.length) {
+    container.innerHTML = '<div class="muted small">No activities or clock-ins today</div>';
+    return;
+  }
+
+  allEntries.forEach(entry => {
+    const div = document.createElement('div');
+    div.className = 'activity-row';
+    if (entry.type === 'clock') {
+      const duration = entry.out ? minutesBetween(entry.in, entry.out) : minutesBetween(entry.in, nowISO());
+      div.innerHTML = `
+        <div style="flex:1">
+          <strong>${entry.category}</strong>
+          <div class="muted small">${fmtTime(entry.in)} - ${entry.out ? fmtTime(entry.out) : 'Now'}</div>
+        </div>
+        <div style="text-align:right">
+          <div class="small-muted">${fmtHM(duration)}</div>
+        </div>`;
+    } else {
+      div.innerHTML = `
+        <div style="flex:1">
+          <strong>${entry.title || entry.name}</strong>
+          <div class="muted small">${entry.start || ''}${entry.start && entry.end ? ' – ' + entry.end : ''}</div>
+        </div>
+        <div style="text-align:right">
+          <div class="small-muted">${entry.mins ? fmtHM(entry.mins) : ''}</div>
+          <div class="muted small">Mood ${entry.mood || '—'}</div>
+        </div>`;
+    }
+    container.appendChild(div);
+  });
+}
+
+/* Calendar rendering (month view) */
+let calendarYear = new Date().getFullYear(), calendarMonth = new Date().getMonth();
+document.getElementById('prevMonth').addEventListener('click',()=>{ calendarMonth--; if(calendarMonth<0){calendarMonth=11; calendarYear--;} renderCalendar();});
+document.getElementById('nextMonth').addEventListener('click',()=>{ calendarMonth++; if(calendarMonth>11){calendarMonth=0; calendarYear++;} renderCalendar();});
+
+function renderCalendar(){
+  const grid = document.getElementById('calendarGrid'); grid.innerHTML='';
+  const first = new Date(calendarYear, calendarMonth, 1);
+  document.getElementById('monthLabel').textContent = first.toLocaleString(undefined,{month:'long', year:'numeric'});
+  const startDay = first.getDay();
+  const daysInMonth = new Date(calendarYear, calendarMonth+1,0).getDate();
+  for(let i=0;i<startDay;i++){
+    const div = document.createElement('div'); div.className='day'; div.style.opacity=0.4; grid.appendChild(div);
+  }
+  for(let d=1; d<=daysInMonth; d++){
+    const dt = new Date(calendarYear, calendarMonth, d);
+    const key = dt.getFullYear() + '-' + String(dt.getMonth()+1).padStart(2,'0') + '-' + String(dt.getDate()).padStart(2,'0');
+    const mins = calculateMinutesForDay(key, 'all');
+    const leave = state.leaves[key];
+    const div = document.createElement('div'); div.className='day card';
+    if(dateKeyFromISO(new Date().toISOString())===key) div.classList.add('today');
+    div.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center"><div class="date">${d}</div><div class="muted small">${leave ? (leave.type==='half' ? '½' : 'L') : ''}</div></div>
+      <div style="margin-top:6px">${mins? '<div class="hours">'+fmtHM(mins)+'</div>' : '<div class="muted small">No data</div>'}</div>`;
+    div.addEventListener('click',()=> openDayModal(key));
+    grid.appendChild(div);
+  }
+}
+
+function openDayModal(dayKey){
+  // Create modal HTML
+  const modal = document.createElement('div');
+  modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.8);display:flex;align-items:center;justify-content:center;z-index:1000;overflow-y:auto;padding:20px;';
+  
+  const totalMins = calculateMinutesForDay(dayKey, 'all');
+  const workMins = calculateMinutesForDay(dayKey, 'work');
+  const hasLeave = state.leaves[dayKey];
+  
+  modal.innerHTML = `
+    <div class="card" style="width:90%;max-width:600px;padding:24px;margin:auto;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+        <h2 class="big" style="margin:0;">${dayKey}</h2>
+        <button id="closeModal" style="background:transparent;border:none;font-size:24px;cursor:pointer;color:var(--muted);">×</button>
+      </div>
+      
+      <div class="card" style="padding:16px;margin-bottom:16px;background:var(--glass);">
+        <div class="muted small" style="margin-bottom:8px;">Day Summary</div>
+        <div style="display:grid;gap:8px;">
+          <div style="display:flex;justify-content:space-between;">
+            <span>Total Time:</span>
+            <span class="hours">${fmtHM(totalMins)}</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;">
+            <span>Work Time:</span>
+            <span class="hours">${fmtHM(workMins)}</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;">
+            <span>Leave Status:</span>
+            <span class="hours">${hasLeave ? (hasLeave.type === 'half' ? 'Half Day' : 'Full Day') : 'No Leave'}</span>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Add Activity Section -->
+      <div class="card" style="padding:16px;margin-bottom:16px;background:var(--glass);">
+        <div class="muted small" style="margin-bottom:12px;">Add Activity to This Day</div>
+        <div style="display:grid;gap:8px;">
+          <input type="text" id="modalActivityName" placeholder="Activity name (e.g., Meeting)" style="width:100%;" />
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
+            <input type="time" id="modalActivityStart" placeholder="Start" />
+            <input type="time" id="modalActivityEnd" placeholder="End" />
+          <select id="modalActivityMood" title="Mood">
+            <option value="1" style="color: #ff4d4d;">😡 Awful</option>
+            <option value="2" style="color: #ff7f7f;">😞 Bad</option>
+            <option value="3" style="color: #ffcc99;">😟 Poor</option>
+            <option value="4" style="color: #ffcc00;">😰 Stressed</option>
+            <option value="5" style="color: #ffccff;">🤒 Sick</option>
+            <option value="6" style="color: #cccccc;" selected>😐 Neutral</option>
+            <option value="7" style="color: #99ff99;">😌 Calm</option>
+            <option value="8" style="color: #66b3ff;">😊 Good</option>
+            <option value="9" style="color: #3399ff;">😃 Excited</option>
+            <option value="10" style="color: #00cc66;">🤩 Awesome</option>
+          </select>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr auto;gap:8px;">
+            <input type="number" id="modalActivityDuration" placeholder="Or just duration (minutes)" min="1" />
+            <button id="addModalActivity" class="success">Add Activity</button>
+          </div>
+          <div class="small-muted">Add activity with start/end time, or just enter duration in minutes.</div>
+        </div>
+      </div>
+      
+      <!-- Clock In/Out Section -->
+      <div class="card" style="padding:16px;margin-bottom:16px;background:var(--glass);">
+        <div class="muted small" style="margin-bottom:12px;">Add Clock Entry</div>
+        <div style="display:grid;gap:8px;">
+          <select id="modalClockCategory">
+            <option value="Work">Work</option>
+            <option value="Class">Class</option>
+            <option value="Study">Study</option>
+            <option value="Exercise">Exercise</option>
+            <option value="Dining">Dining</option>
+            <option value="Sleep">Sleep</option>
+            <option value="Other">Other</option>
+          </select>
+          <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:8px;">
+            <input type="time" id="modalClockIn" placeholder="Clock In" />
+            <input type="time" id="modalClockOut" placeholder="Clock Out" />
+            <button id="addModalClock" class="success">Add Clock</button>
+          </div>
+          <label style="display:flex;align-items:center;gap:8px;margin-top:4px;">
+            <input type="checkbox" id="modalOvernightCheck" style="width:auto;"/>
+            <span class="small-muted">Overnight entry (clock out is next day)</span>
+          </label>
+          <div class="small-muted">Add a clock in/out entry. Check overnight for sleep or activities that span past midnight.</div>
+        </div>
+      </div>
+      
+      <div class="muted small" style="margin-bottom:12px;">Quick Actions</div>
+      
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;">
+        ${!hasLeave ? `
+          <button id="addFullLeave" class="success">Add Full Day Leave</button>
+          <button id="addHalfLeave" class="success">Add Half Day Leave</button>
+        ` : `
+          <button id="removeLeave" class="danger">Remove Leave</button>
+        `}
+      </div>
+      
+      ${(state.clocks[dayKey] && state.clocks[dayKey].length > 0) || (state.activities[dayKey] && state.activities[dayKey].length > 0) ? `
+        <div>
+          <div class="muted small" style="margin-bottom:8px;">Activities on this day</div>
+          <div class="list" style="max-height:250px;">
+            ${(state.clocks[dayKey] || []).map((c, idx) => `
+              <div class="activity-row" style="margin-bottom:4px;">
+                <div>
+                  <strong>${c.category}</strong>
+                  <div class="muted small">${fmtTime(c.in)} - ${c.out ? fmtTime(c.out) : 'Ongoing'}</div>
+                </div>
+                <div style="display:flex;gap:8px;align-items:center;">
+                  <div class="small-muted">${c.out ? fmtHM(minutesBetween(c.in, c.out)) : ''}</div>
+                  <button class="danger removeClockEntry" data-idx="${idx}" style="padding:4px 8px;font-size:11px;">Remove</button>
+                </div>
+              </div>
+            `).join('')}
+            ${(state.activities[dayKey] || []).map(a => `
+              <div class="activity-row" style="margin-bottom:4px;">
+                <div>
+                  <strong>${a.title || a.name}</strong>
+                  <div class="muted small">${a.start ? (a.start + ' - ' + a.end) : 'Duration only'}</div>
+                </div>
+                <div style="display:flex;gap:8px;align-items:center;">
+                  <div class="small-muted">${a.mins ? fmtHM(a.mins) : ''}</div>
+                  <button class="danger removeActivityEntry" data-id="${a.id}" style="padding:4px 8px;font-size:11px;">Remove</button>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      ` : '<div class="muted small">No activities recorded for this day yet.</div>'}
+    </div>
+  `;
+  
+  document.body.appendChild(modal);
+  
+  // Event listeners
+  document.getElementById('closeModal').addEventListener('click', () => {
+    document.body.removeChild(modal);
+  });
+  
+  modal.addEventListener('click', (e) => {
+    if(e.target === modal) document.body.removeChild(modal);
+  });
+  
+  // Add Activity
+  document.getElementById('addModalActivity').addEventListener('click', () => {
+    const name = document.getElementById('modalActivityName').value.trim();
+    const start = document.getElementById('modalActivityStart').value;
+    const end = document.getElementById('modalActivityEnd').value;
+    const duration = parseInt(document.getElementById('modalActivityDuration').value || 0, 10);
+    const mood = parseInt(document.getElementById('modalActivityMood').value, 10);
+    
+    if(!name) {
+      alert('Please enter activity name');
+      return;
+    }
+    
+    let mins = 0;
+    let actStart = null, actEnd = null;
+    
+    if(start && end) {
+      mins = computeMinutesFromTimes(start, end);
+      if(mins <= 0) {
+        alert('End time must be after start time');
+        return;
+      }
+      actStart = start;
+      actEnd = end;
+    } else if(duration > 0) {
+      mins = duration;
+    } else {
+      alert('Please provide either start/end times or duration');
+      return;
+    }
+    
+    const id = 'a' + Date.now();
+    state.activities[dayKey] = state.activities[dayKey] || [];
+    state.activities[dayKey].push({id, title: name, start: actStart, end: actEnd, mins, mood});
+    saveState();
+    document.body.removeChild(modal);
+    openDayModal(dayKey); // Reopen to show updated list
+  });
+  
+  // Add Clock Entry
+  document.getElementById('addModalClock').addEventListener('click', () => {
+    const category = document.getElementById('modalClockCategory').value;
+    const clockIn = document.getElementById('modalClockIn').value;
+    const clockOut = document.getElementById('modalClockOut').value;
+    const isOvernight = document.getElementById('modalOvernightCheck').checked;
+    
+    if(!clockIn || !clockOut) {
+      alert('Please provide both clock in and clock out times');
+      return;
+    }
+    
+    // Create ISO timestamps for the specific day
+    let inISO = dayKey + 'T' + clockIn + ':00';
+    let outISO = dayKey + 'T' + clockOut + ':00';
+    
+    // If overnight is checked, add clock out to next day
+    if(isOvernight) {
+      const nextDay = new Date(dayKey);
+      nextDay.setDate(nextDay.getDate() + 1);
+      const nextDayKey = dateKeyFromISO(nextDay.toISOString());
+      outISO = nextDayKey + 'T' + clockOut + ':00';
+    }
+    
+    state.clocks[dayKey] = state.clocks[dayKey] || [];
+    state.clocks[dayKey].push({in: inISO, out: outISO, category});
+    saveState();
+    document.body.removeChild(modal);
+    openDayModal(dayKey); // Reopen to show updated list
+  });
+  
+  // Remove clock entry
+  modal.querySelectorAll('.removeClockEntry').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const idx = parseInt(btn.dataset.idx, 10);
+      state.clocks[dayKey].splice(idx, 1);
+      if(state.clocks[dayKey].length === 0) delete state.clocks[dayKey];
+      saveState();
+      document.body.removeChild(modal);
+      openDayModal(dayKey);
+    });
+  });
+  
+  // Remove activity entry
+  modal.querySelectorAll('.removeActivityEntry').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = btn.dataset.id;
+      state.activities[dayKey] = state.activities[dayKey].filter(a => a.id !== id);
+      if(state.activities[dayKey].length === 0) delete state.activities[dayKey];
+      saveState();
+      document.body.removeChild(modal);
+      openDayModal(dayKey);
+    });
+  });
+  
+  const addFullBtn = document.getElementById('addFullLeave');
+  if(addFullBtn) {
+    addFullBtn.addEventListener('click', () => {
+      state.leaves[dayKey] = {type:'full', note:'Added via calendar'};
+      saveState();
+      document.body.removeChild(modal);
+      openDayModal(dayKey);
+    });
+  }
+  
+  const addHalfBtn = document.getElementById('addHalfLeave');
+  if(addHalfBtn) {
+    addHalfBtn.addEventListener('click', () => {
+      state.leaves[dayKey] = {type:'half', note:'Added via calendar'};
+      saveState();
+      document.body.removeChild(modal);
+      openDayModal(dayKey);
+    });
+  }
+  
+  const removeBtn = document.getElementById('removeLeave');
+  if(removeBtn) {
+    removeBtn.addEventListener('click', () => {
+      delete state.leaves[dayKey];
+      saveState();
+      document.body.removeChild(modal);
+      openDayModal(dayKey);
+    });
+  }
+}
+
+/* Activities list rendering */
+function renderActivities(){
+  const key = dateKeyFromISO(nowISO());
+  const container = document.getElementById('activityList');
+  container.innerHTML = '';
+  const arr = state.activities[key] || [];
+  if(!arr.length) { container.innerHTML = '<div class="muted small">No activities today</div>'; drawPie('pieDay', []); return; }
+  arr.forEach(a=>{
+    const row = document.createElement('div'); row.className='activity-row';
+    row.innerHTML = `<div><strong>${a.title||a.name}</strong><div class="muted small">${a.start ? (a.start+'–'+(a.end||'')) : ''}</div></div>
+      <div style="text-align:right"><div class="muted small">${a.mins?fmtHM(a.mins):''}</div><div style="margin-top:6px"><button data-id="${a.id}" class="removeAct">Remove</button></div></div>`;
+    container.appendChild(row);
+  });
+  container.querySelectorAll('.removeAct').forEach(btn=>{
+    btn.addEventListener('click', (e)=>{ const id = btn.dataset.id; removeActivity(key,id); });
+  });
+  const pieData = arr.map(a => ({label: a.title||a.name, value: a.mins || 0, mood: a.mood || 6}));
+  drawPie('pieDay', pieData);
+}
+
+/* Leaves list */
+function renderLeaves(){
+  const container = document.getElementById('leavesList'); container.innerHTML='';
+  const keys = Object.keys(state.leaves).sort().reverse();
+  if(!keys.length){ container.innerHTML = '<div class="muted small">No leaves recorded</div>'; return; }
+  keys.forEach(k=>{
+    const L = state.leaves[k];
+    const div = document.createElement('div'); div.className='activity-row';
+    div.innerHTML = `<div><strong>${k} – ${L.type==='half' ? 'Half Day' : 'Full Day'}</strong><div class="muted small">${L.note||''}</div></div>
+      <div><button data-day="${k}" class="removeLeave">Remove</button></div>`;
+    container.appendChild(div);
+  });
+  container.querySelectorAll('.removeLeave').forEach(b => b.addEventListener('click', ()=> removeLeave(b.dataset.day)));
+}
+
+/* Stats rendering */
+function renderStats() {
+  const range = document.getElementById('statsRangeChart').value;
+  const periodKeys = collectKeysForRange(range);
+  const workKeyword = 'work';
+  const map = new Map();
+  let totalWorkMins = 0;
+  let moodSum = 0, moodCount = 0;
+  periodKeys.forEach(day => {
+    (state.clocks[day] || []).forEach(c => {
+      const category = (c.category || '').toLowerCase();
+      if (category.includes(workKeyword)) {
+        const mins = c.out ? minutesBetween(c.in, c.out) : minutesBetween(c.in, nowISO());
+        map.set(c.category, (map.get(c.category) || 0) + mins);
+      }
+    });
+    (state.activities[day] || []).forEach(a => {
+      const title = (a.title || a.name || '').toLowerCase();
+      if (title.includes(workKeyword)) {
+        const lbl = a.title || a.name;
+        const mins = a.mins || (a.start && a.end ? computeMinutesFromTimes(a.start, a.end) : 0);
+        map.set(lbl, (map.get(lbl) || 0) + mins);
+        if (a.mood) {
+          moodSum += a.mood;
+          moodCount++;
+        }
+      }
+    });
+    totalWorkMins += calculateMinutesForDay(day, 'work');
+  });
+  const data = Array.from(map.entries()).map(([label, value]) => ({ label, value }));
+  drawPie('pieRange', data);
+  document.getElementById('statsSummary').textContent = `Total Work: ${fmtHM(totalWorkMins)} • ${data.length} items`;
+  const moodAvg = moodCount ? (moodSum / moodCount).toFixed(2) : '—';
+  drawMoodTrend(periodKeys);
+  document.getElementById('moodSummary').textContent = `Avg mood (work only): ${moodAvg} (${moodCount} entries)`;
+}
+
+document.getElementById('statsRangeChart').addEventListener('change', renderStats);
+
+function collectKeysForRange(range){
+  const keys = [];
+  const today = new Date();
+  if(range==='day'){
+    keys.push(dateKeyFromISO(nowISO()));
+  } else if(range==='week'){
+    const dayOfWeek = today.getDay();
+    const start = new Date(today); start.setDate(today.getDate() - dayOfWeek);
+    for(let i=0;i<7;i++){ const d=new Date(start); d.setDate(start.getDate()+i); keys.push(dateKeyFromISO(d.toISOString()));}
+  } else {
+    const start = new Date(today.getFullYear(), today.getMonth(), 1);
+    const days = new Date(today.getFullYear(), today.getMonth()+1, 0).getDate();
+    for(let i=1;i<=days;i++){ const d = new Date(today.getFullYear(), today.getMonth(), i); keys.push(dateKeyFromISO(d.toISOString())); }
+  }
+  return keys;
+}
+
+/* Pie drawing (simple canvas pie) */
+function drawPie(canvasId, data){
+  const canvas = document.getElementById(canvasId);
+  if(!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const ratio = window.devicePixelRatio || 1;
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  
+  // Check if canvas has valid dimensions
+  if(w <= 0 || h <= 0) return;
+  
+  canvas.width = w * ratio; canvas.height = h * ratio;
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.scale(ratio, ratio);
+  
+  function colorFor(i){ const hues = [200,140,260,10,40,320,180,56,10,220]; return `hsl(${hues[i%hues.length]} ${60 + (i*7)%20}% 60%)`; }
+  const total = data.reduce((s,d)=>s+(d.value||0),0) || 1;
+  
+  // Calculate safe radius
+  const radius = Math.max(10, Math.min(w, h) / 2 - 10);
+  
+  let startAng = -Math.PI/2;
+  data.forEach((d,i)=>{
+    const frac = (d.value||0)/total;
+    const angle = frac * Math.PI * 2;
+    ctx.beginPath();
+    ctx.moveTo(w/2, h/2);
+    ctx.arc(w/2, h/2, radius, startAng, startAng + angle);
+    ctx.closePath();
+    ctx.fillStyle = colorFor(i);
+    ctx.fill();
+    startAng += angle;
+  });
+}
+
+/* Mood trend simple line (render as bars) */
+function drawMoodTrend(keys){
+  const moodColors = {
+    1: '#ff4d4d', 2: '#ff7f7f', 3: '#ffcc99', 4: '#ffcc00', 5: '#ffccff',
+    6: '#cccccc', 7: '#99ff99', 8: '#66b3ff', 9: '#3399ff', 10: '#00cc66'
+  };
+  const canvas = document.getElementById('moodChart');
+  if(!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const ratio = window.devicePixelRatio || 1;
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  
+  // Check if canvas has valid dimensions
+  if(w <= 0 || h <= 0) return;
+  
+  canvas.width = w * ratio; canvas.height = h * ratio;
+  ctx.scale(ratio, ratio);
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  const points = [];
+  keys.forEach(k=>{
+    const arr = state.activities[k]||[];
+    if(!arr.length){ points.push(null); return; }
+    const avg = arr.reduce((s,a)=>s+(a.mood||6),0)/arr.length;
+    points.push(avg);
+  });
+  const barW = Math.max(2, Math.floor(w / Math.max(1, points.length)));
+  points.forEach((p,i)=>{
+    const x = i*barW;
+    if(p===null) return;
+    const val = (p-1)/9; // 0..1 for 1-10 scale
+    const barH = val * h * 0.9;
+    ctx.fillStyle = moodColors[Math.round(p)] || '#cccccc';
+    ctx.fillRect(x+2, h - barH, barW-4, barH);
+  });
+}
+
+/* ========================
+   SLOT ANALYSIS INTEGRATION
+   ======================== */
+const categoryColors = {
+  work: 'linear-gradient(90deg, #7ce7b0, #4fdc9e)',
+  class: 'linear-gradient(90deg, #ffd166, #f4a261)',
+  study: 'linear-gradient(90deg, #a78bfa, #8b5cf6)',
+  exercise: 'linear-gradient(90deg, #fb923c, #f97316)',
+  dining: 'linear-gradient(90deg, #f472b6, #ec4899)',
+  sleep: 'linear-gradient(90deg, #818cf8, #6366f1)',
+  other: 'linear-gradient(90deg, #9ca3af, #6b7280)'
+};
+
+const categoryColorsSolid = {
+  work: '#7ce7b0',
+  class: '#ffd166',
+  study: '#a78bfa',
+  exercise: '#fb923c',
+  dining: '#f472b6',
+  sleep: '#818cf8',
+  other: '#9ca3af'
+};
+
+let analysisDate = dateKeyFromISO(nowISO());
+
+// Initialize analysis date
+document.getElementById('analysisDate').value = analysisDate;
+document.getElementById('analysisDate').addEventListener('change', (e) => {
+  analysisDate = e.target.value;
+  renderSlotAnalysis();
+});
+
+// View selector
+document.querySelectorAll('.view-btn').forEach(btn => {
+  btn.addEventListener('click', (e) => {
+    document.querySelectorAll('.view-btn').forEach(b => b.classList.remove('active'));
+    e.target.classList.add('active');
+    const view = e.target.dataset.view;
+    ['summaryView', 'timelineView', 'heatmapView', 'gapsView'].forEach(v => {
+      const elem = document.getElementById(v);
+      if(elem) elem.style.display = v === view + 'View' ? 'block' : 'none';
+    });
+    if(view !== 'summary') renderSlotAnalysis();
+  });
+});
+
+function renderSlotAnalysis() {
+  const slots = buildTimeSlots();
+  renderTimeline(slots);
+  renderHeatmap(slots);
+  renderGaps(slots);
+  updateOverview(slots);
+  renderLegend();
+}
+
+function buildTimeSlots() {
+  const slots = Array(24).fill(null).map(() => []);
+  const dateKey = analysisDate;
+  
+  // Process clock entries
+  if (state.clocks && state.clocks[dateKey]) {
+    state.clocks[dateKey].forEach(c => {
+      if (!c.in) return;
+      
+      const start = new Date(c.in);
+      const end = c.out ? new Date(c.out) : new Date();
+      const category = (c.category || 'Other').toLowerCase();
+      
+      if (isNaN(start.getTime())) return;
+      
+      let current = new Date(start);
+      while (current < end) {
+        const hour = current.getHours();
+        const nextHour = new Date(current);
+        nextHour.setHours(hour + 1, 0, 0, 0);
+        
+        const slotEnd = nextHour < end ? nextHour : end;
+        const minutes = Math.round((slotEnd - current) / 60000);
+        
+        if (minutes > 0) {
+          slots[hour].push({
+            type: 'clock',
+            category,
+            start: new Date(current),
+            end: new Date(slotEnd),
+            minutes,
+            label: c.category || 'Other'
+          });
+        }
+        
+        current = new Date(nextHour);
+      }
+    });
+  }
+  
+  // Process activities
+  if (state.activities && state.activities[dateKey]) {
+    state.activities[dateKey].forEach(a => {
+      if (a.start && a.end) {
+        try {
+          const [startH, startM] = a.start.split(':').map(Number);
+          const [endH, endM] = a.end.split(':').map(Number);
+          
+          const baseDate = new Date(analysisDate + 'T00:00:00');
+          const start = new Date(baseDate);
+          start.setHours(startH, startM, 0, 0);
+          
+          const end = new Date(baseDate);
+          end.setHours(endH, endM, 0, 0);
+          
+          if (end <= start) end.setDate(end.getDate() + 1);
+          
+          let current = new Date(start);
+          while (current < end) {
+            const hour = current.getHours();
+            const nextHour = new Date(current);
+            nextHour.setHours(hour + 1, 0, 0, 0);
+            
+            const slotEnd = nextHour < end ? nextHour : end;
+            const minutes = Math.round((slotEnd - current) / 60000);
+            
+            if (minutes > 0) {
+              const category = getCategoryFromTitle(a.title || a.name || 'other');
+              slots[hour % 24].push({
+                type: 'activity',
+                category,
+                start: new Date(current),
+                end: new Date(slotEnd),
+                minutes,
+                label: a.title || a.name || 'Activity',
+                mood: a.mood
+              });
+            }
+            
+            current = new Date(nextHour);
+          }
+        } catch (err) {
+          console.warn('Error processing activity:', a, err);
+        }
+      }
+    });
+  }
+  
+  return slots;
+}
+
+function getCategoryFromTitle(title) {
+  const lower = (title || '').toLowerCase();
+  if (lower.includes('work') || lower.includes('meeting')) return 'work';
+  if (lower.includes('class') || lower.includes('lecture')) return 'class';
+  if (lower.includes('study') || lower.includes('learn')) return 'study';
+  if (lower.includes('exercise') || lower.includes('gym') || lower.includes('run')) return 'exercise';
+  if (lower.includes('lunch') || lower.includes('dinner') || lower.includes('dining')) return 'dining';
+  if (lower.includes('sleep') || lower.includes('rest') || lower.includes('nap')) return 'sleep';
+  return 'other';
+}
+
+function renderTimeline(slots) {
+  const timeline = document.getElementById('timeline');
+  timeline.innerHTML = '';
+  
+  for (let h = 0; h < 24; h++) {
+    const hourLabel = document.createElement('div');
+    hourLabel.className = 'hour-label';
+    hourLabel.textContent = String(h).padStart(2, '0') + ':00';
+    
+    const hourSlot = document.createElement('div');
+    hourSlot.className = 'hour-slot';
+    
+    const hourSlots = slots[h] || [];
+    
+    hourSlots.forEach(slot => {
+      const block = document.createElement('div');
+      block.className = 'slot-block slot-' + slot.category;
+      
+      const startTime = slot.start.toLocaleTimeString('en-US', {hour: '2-digit', minute: '2-digit', hour12: false});
+      const endTime = slot.end.toLocaleTimeString('en-US', {hour: '2-digit', minute: '2-digit', hour12: false});
+      
+      block.innerHTML = `
+        <span>${slot.label}</span>
+        <span style="opacity: 0.8; font-size: 11px;">${slot.minutes}m</span>
+      `;
+      block.title = `${slot.label}\n${startTime} - ${endTime}\n${slot.minutes} minutes${slot.mood ? '\nMood: ' + slot.mood : ''}`;
+      
+      hourSlot.appendChild(block);
+    });
+    
+    if (hourSlots.length === 0) {
+      const empty = document.createElement('div');
+      empty.style.cssText = 'color: var(--muted); font-size: 12px; padding: 8px 0;';
+      empty.textContent = '—';
+      hourSlot.appendChild(empty);
+    }
+    
+    timeline.appendChild(hourLabel);
+    timeline.appendChild(hourSlot);
+  }
+}
+
+function renderHeatmap(slots) {
+  const heatmap = document.getElementById('heatmap');
+  const labels = document.getElementById('heatmapLabels');
+  heatmap.innerHTML = '';
+  labels.innerHTML = '';
+  
+  const hourlyTotals = slots.map(s => 
+    s.reduce((sum, slot) => sum + slot.minutes, 0)
+  );
+  
+  const maxMinutes = Math.max(...hourlyTotals, 1);
+  
+  for (let h = 0; h < 24; h++) {
+    const label = document.createElement('div');
+    label.textContent = h;
+    labels.appendChild(label);
+    
+    const totalMinutes = hourlyTotals[h];
+    const intensity = totalMinutes / maxMinutes;
+    
+    const cell = document.createElement('div');
+    cell.className = 'heatmap-cell';
+    
+    if (totalMinutes > 0) {
+      cell.style.background = `rgba(79, 156, 255, ${Math.max(0.2, intensity * 0.9)})`;
+      cell.textContent = totalMinutes;
+    }
+    
+    cell.title = `${h}:00-${h+1}:00\n${totalMinutes} minutes`;
+    
+    heatmap.appendChild(cell);
+  }
+}
+
+function renderGaps(slots) {
+  const gaps = [];
+  let lastEnd = null;
+  
+  const allSlots = [];
+  slots.forEach((hourSlots, h) => {
+    hourSlots.forEach(slot => allSlots.push(slot));
+  });
+  
+  allSlots.sort((a, b) => a.start - b.start);
+  
+  allSlots.forEach(slot => {
+    if (lastEnd && slot.start > lastEnd) {
+      const gapMinutes = Math.round((slot.start - lastEnd) / 60000);
+      if (gapMinutes >= 15) {
+        gaps.push({
+          start: new Date(lastEnd),
+          end: new Date(slot.start),
+          minutes: gapMinutes
+        });
+      }
+    }
+    if (!lastEnd || slot.end > lastEnd) {
+      lastEnd = slot.end;
+    }
+  });
+  
+  const gapsDiv = document.getElementById('gaps');
+  if (gaps.length === 0) {
+    gapsDiv.innerHTML = '<p class="muted">No significant gaps detected (≥15 minutes)</p>';
+  } else {
+    gapsDiv.innerHTML = gaps.map(gap => {
+      const start = gap.start.toLocaleTimeString('en-US', {hour: '2-digit', minute: '2-digit', hour12: false});
+      const end = gap.end.toLocaleTimeString('en-US', {hour: '2-digit', minute: '2-digit', hour12: false});
+      return `
+        <div class="stat-row">
+          <span>${start} - ${end}</span>
+          <span class="muted">${gap.minutes} minutes untracked</span>
+        </div>
+      `;
+    }).join('');
+  }
+}
+
+function updateOverview(slots) {
+  const totalMinutes = slots.reduce((sum, hourSlots) => 
+    sum + hourSlots.reduce((s, slot) => s + slot.minutes, 0), 0
+  );
+  
+  document.getElementById('totalTime').textContent = 
+    `${Math.floor(totalMinutes/60)}h ${totalMinutes%60}m`;
+  
+  const hourlyTotals = slots.map((hourSlots, h) => ({
+    hour: h,
+    minutes: hourSlots.reduce((sum, slot) => sum + slot.minutes, 0)
+  })).sort((a, b) => b.minutes - a.minutes);
+  
+  const peak = hourlyTotals[0];
+  if (peak && peak.minutes > 0) {
+    document.getElementById('peakHour').textContent = 
+      `${String(peak.hour).padStart(2, '0')}:00-${String(peak.hour + 1).padStart(2, '0')}:00`;
+  } else {
+    document.getElementById('peakHour').textContent = '—';
+  }
+  
+  const utilization = ((totalMinutes / (24 * 60)) * 100).toFixed(1);
+  document.getElementById('utilization').textContent = utilization + '%';
+}
+
+function renderLegend() {
+  const legend = document.getElementById('legend');
+  legend.innerHTML = Object.entries(categoryColors).map(([cat, color]) => `
+    <div class="legend-item">
+      <div class="legend-color" style="background: ${color}"></div>
+      <span>${cat.charAt(0).toUpperCase() + cat.slice(1)}</span>
+    </div>
+  `).join('');
+}
+
+/* ========================
+   Evolve Logic (Hunter's System)
+   ======================== */
+let activeEvolveTab = 'dashboard';
+
+function switchEvolveTab(tabName) {
+    activeEvolveTab = tabName;
+    renderEvolve();
+}
+
+function renderEvolve() {
+    const container = document.getElementById('evolve');
+    if (!container) return;
+
+    // Determine XP progress for the level bar
+    const { level, totalXP } = state.playerData;
+    const xpForCurrentLevel = 100 * Math.pow(1.5, level - 2);
+    const xpForNextLevel = 100 * Math.pow(1.5, level - 1);
+    const xpInCurrentLevel = totalXP - (level > 1 ? xpForCurrentLevel : 0);
+    const xpNeededForNext = xpForNextLevel - (level > 1 ? xpForCurrentLevel : 0);
+    const xpProgressPercent = (xpInCurrentLevel / xpNeededForNext) * 100;
+
+    container.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+            <div class="pill">
+                <span>Level: <span id="playerLevel">${level}</span></span> |
+                <span>XP: <span id="playerXP">${Math.floor(totalXP)}</span></span>
+            </div>
+        </div>
+        <div class="xp-bar" style="margin-bottom:16px;" title="${Math.floor(xpInCurrentLevel)} / ${Math.floor(xpNeededForNext)} XP">
+            <div class="xp-bar-inner" style="width:${xpProgressPercent}%"></div>
+        </div>
+        <div class="evolve-grid">
+            <nav class="evolve-nav">
+                <button class="tab ${activeEvolveTab === 'dashboard' ? 'active' : ''}" onclick="switchEvolveTab('dashboard')">Dashboard</button>
+                <button class="tab ${activeEvolveTab === 'quests' ? 'active' : ''}" onclick="switchEvolveTab('quests')">Quests</button>
+                <button class="tab ${activeEvolveTab === 'habits' ? 'active' : ''}" onclick="switchEvolveTab('habits')">Habits</button>
+                <button class="tab ${activeEvolveTab === 'journal' ? 'active' : ''}" onclick="switchEvolveTab('journal')">Journal</button>
+                <button class="tab ${activeEvolveTab === 'goals' ? 'active' : ''}" onclick="switchEvolveTab('goals')">System Goals</button>
+            </nav>
+            <div id="evolve-content" class="card" style="padding:12px;">
+                <!-- Evolve content renders here -->
+            </div>
+        </div>
+    `;
+
+    // Render active tab's content
+    switch (activeEvolveTab) {
+        case 'dashboard': renderEvolveDashboard(); break;
+        case 'quests': renderEvolveQuests(); break;
+        case 'habits': renderEvolveHabits(); break;
+        case 'journal': renderEvolveJournal(); break;
+        case 'goals': renderEvolveSystemGoals(); break;
+    }
+}
+
+function renderEvolveDashboard() {
+    const content = document.getElementById('evolve-content');
+    const { dailyXpGained } = state.playerData;
+    const today = new Date().toISOString().split('T')[0];
+    
+    // Reset daily XP if it's a new day
+    if (dailyXpGained.date !== today) {
+        dailyXpGained.date = today;
+        dailyXpGained.amount = 0;
+    }
+
+    content.innerHTML = `
+        <div class="grid" style="grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
+            <!-- Radar Chart -->
+            <div class="card" style="padding:12px;">
+                <h3 class="big">Player Stats Radar</h3>
+                <div style="position: relative; height: 250px; margin-top: 12px;">
+                    <canvas id="evolve-radar-chart"></canvas>
+                </div>
+            </div>
+
+            <!-- Daily Summary -->
+            <div class="card" style="padding:12px; display:flex; flex-direction: column; justify-content: space-between;">
+                <div>
+                    <h3 class="big">Daily Summary</h3>
+                    <div class="stat-grid" style="margin-top:12px;">
+                        <div class="stat-item">
+                            <div class="big">${dailyXpGained.amount}</div>
+                            <div class="muted small">XP Gained Today</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="big">${state.activeQuests.length}</div>
+                            <div class="muted small">Active Quests</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card" style="margin-top:12px; padding:10px; background: var(--glass);">
+                    <p id="evolve-daily-quote" class="muted" style="font-style:italic;">Loading quote...</p>
+                    <p id="evolve-daily-quote-author" class="muted small" style="text-align:right;">—</p>
+                </div>
+            </div>
+        </div>
+        <div class="card" style="padding:12px;">
+            <h3 class="big">Constellation of Thoughts</h3>
+            <p class="muted small">A visual representation of your journal entries. Each star is a note, sized by word count. Lines connect notes with shared tags.</p>
+            <div style="position: relative; height: 300px; margin-top: 12px;">
+                <canvas id="constellation-canvas"></canvas>
+            </div>
+        </div>
+    `;
+
+    renderRadarChart();
+    renderDailyQuote();
+    renderConstellation();
+}
+
+function renderConstellation() {
+    const canvas = document.getElementById('constellation-canvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const notes = state.secondBrainNotes || [];
+
+    // Set canvas size
+    const dpr = window.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    ctx.scale(dpr, dpr);
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    if (notes.length === 0) {
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+        ctx.font = '14px Inter';
+        ctx.textAlign = 'center';
+        ctx.fillText('No notes yet. Write in your journal to see your constellation grow.', rect.width / 2, rect.height / 2);
+        return;
+    }
+
+    // Create node positions
+    const nodes = notes.map((note, i) => ({
+        ...note,
+        x: Math.random() * rect.width,
+        y: Math.random() * rect.height,
+        radius: Math.max(3, Math.min(15, Math.log(note.content.split(' ').length) * 2))
+    }));
+
+    // Find links between notes with shared tags
+    const links = [];
+    const tagMap = {};
+    nodes.forEach(node => {
+        (node.tags || []).forEach(tag => {
+            if (!tagMap[tag]) tagMap[tag] = [];
+            tagMap[tag].push(node.id);
+        });
+    });
+
+    Object.values(tagMap).forEach(ids => {
+        for (let i = 0; i < ids.length; i++) {
+            for (let j = i + 1; j < ids.length; j++) {
+                links.push({ source: ids[i], target: ids[j] });
+            }
+        }
+    });
+
+    // Draw links
+    links.forEach(link => {
+        const sourceNode = nodes.find(n => n.id === link.source);
+        const targetNode = nodes.find(n => n.id === link.target);
+        if (sourceNode && targetNode) {
+            ctx.beginPath();
+            ctx.moveTo(sourceNode.x, sourceNode.y);
+            ctx.lineTo(targetNode.x, targetNode.y);
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+            ctx.stroke();
+        }
+    });
+
+    // Draw nodes
+    nodes.forEach(node => {
+        ctx.beginPath();
+        ctx.arc(node.x, node.y, node.radius, 0, 2 * Math.PI);
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+        ctx.fill();
+    });
+}
+
+function renderEvolveQuests() {
+    const content = document.getElementById('evolve-content');
+    content.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+            <h3 class="big">Quests</h3>
+            <button id="addQuestBtn" class="success">Add Quest</button>
+        </div>
+        <div class="quest-type-pills">
+            <button class="view-btn active" data-filter="all">All</button>
+            <button class="view-btn" data-filter="Main">Main</button>
+            <button class="view-btn" data-filter="Side">Side</button>
+            <button class="view-btn" data-filter="Daily">Daily</button>
+        </div>
+        <div id="quest-list" class="grid" style="gap:12px;"></div>
+    `;
+    renderQuestList('all'); // Initial render
+}
+
+function renderQuestList(filter) {
+    const listEl = document.getElementById('quest-list');
+    if (!listEl) return;
+    const quests = state.activeQuests.filter(q => filter === 'all' || q.type === filter);
+    
+    if (quests.length === 0) {
+        listEl.innerHTML = `<div class="muted small" style="padding:10px;">No quests of this type. Time to create one!</div>`;
+        return;
+    }
+
+    listEl.innerHTML = quests.map(q => `
+        <div class="card quest-card" style="padding:10px;">
+            <div class="quest-header">
+                <strong>${q.name}</strong>
+                <div class="quest-actions">
+                    <span class="pill muted small" style="background:var(--bg);">${q.xp} XP</span>
+                    <button class="success complete-quest-btn" data-id="${q.id}" style="padding:4px 8px;font-size:12px;">Complete</button>
+                </div>
+            </div>
+            <p class="muted small quest-description">${q.description}</p>
+        </div>
+    `).join('');
+}
+
+function renderEvolveHabits() {
+    const content = document.getElementById('evolve-content');
+    content.innerHTML = `
+        <div class="grid" style="grid-template-columns: 1fr 2fr; gap: 16px;">
+            <div>
+                <h3 class="big">Add Habit</h3>
+                <div class="card" style="padding:12px;">
+                    <div class="grid" style="gap:10px;">
+                        <input id="habitName" placeholder="Habit Name (e.g., Read for 15 mins)">
+                        <select id="habitStat">
+                           <option value="discipline">Discipline</option>
+                           <option value="health">Health</option>
+                           <option value="mindset">Mindset</option>
+                           <option value="learning">Learning</option>
+                        </select>
+                        <input id="habitXP" type="number" placeholder="XP per completion">
+                        <button id="addHabitBtn" class="success">Add Habit</button>
+                    </div>
+                </div>
+            </div>
+            <div>
+                <h3 class="big">My Habits</h3>
+                <div id="habits-list" class="grid" style="gap:12px;">
+                    <!-- Habits will be rendered here -->
+                </div>
+            </div>
+        </div>
+    `;
+    renderHabitsList();
+
+    document.getElementById('addHabitBtn').addEventListener('click', addHabit);
+}
+
+function addHabit() {
+    const name = document.getElementById('habitName').value;
+    const stat = document.getElementById('habitStat').value;
+    const xp = parseInt(document.getElementById('habitXP').value, 10);
+
+    if (name && stat && xp > 0) {
+        state.playerData.habits.push({
+            id: 'habit-' + Date.now(),
+            name,
+            stat,
+            xp,
+            completions: {} // Store completions by date
+        });
+        saveState();
+        document.getElementById('habitName').value = '';
+        document.getElementById('habitXP').value = '';
+    } else {
+        alert('Please fill in all fields for the habit.');
+    }
+}
+
+function renderHabitsList() {
+    const habitsList = document.getElementById('habits-list');
+    if (!habitsList) return;
+
+    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
+
+    habitsList.innerHTML = state.playerData.habits.map(habit => {
+        const completedToday = habit.completions[today];
+        return `
+            <div class="habit-item card">
+                <span>${habit.name} (+${habit.xp} ${habit.stat.charAt(0).toUpperCase() + habit.stat.slice(1)} XP)</span>
+                <button 
+                    class="habit-btn ${completedToday ? 'success' : ''}" 
+                    data-habit-id="${habit.id}"
+                    ${completedToday ? 'disabled' : ''}
+                >
+                    ${completedToday ? 'Done' : 'Complete'}
+                </button>
+            </div>
+        `;
+    }).join('');
+    
+    // Add event listeners after rendering
+    habitsList.querySelectorAll('.habit-btn').forEach(btn => {
+        btn.addEventListener('click', completeHabit);
+    });
+}
+
+function completeHabit(event) {
+    const habitId = event.target.dataset.habitId;
+    const habit = state.playerData.habits.find(h => h.id === habitId);
+    const today = new Date().toISOString().split('T')[0];
+
+    if (habit && !habit.completions[today]) {
+        habit.completions[today] = true;
+        
+        // Award XP
+        state.playerData.statXP[habit.stat] += habit.xp;
+        state.playerData.totalXP += habit.xp;
+        state.playerData.dailyXpGained.amount += habit.xp;
+        
+        // Check for level up
+        checkLevelUp();
+        saveState();
+    }
+}
+
+
+function renderEvolveJournal() {
+    const content = document.getElementById('evolve-content');
+    content.innerHTML = `
+        <div class="grid" style="grid-template-columns: 1fr 2fr; gap: 16px;">
+            <div>
+                <h3 class="big">Add Note</h3>
+                <div class="card" style="padding:12px;">
+                    <div class="grid" style="gap:10px;">
+                        <input id="noteTitle" placeholder="Note Title">
+                        <textarea id="noteContent" placeholder="Content..." rows="5"></textarea>
+                        <select id="noteCategory">
+                            <option value="Insight">Insight</option>
+                            <option value="Idea">Idea</option>
+                            <option value="Knowledge">Knowledge</option>
+                            <option value="Reflection">Reflection</option>
+                        </select>
+                        <input id="noteTags" placeholder="Tags (comma-separated)">
+                        <button id="addNoteBtn" class="success">Add Note</button>
+                    </div>
+                </div>
+            </div>
+            <div>
+                <h3 class="big">My Notes</h3>
+                <div id="notes-list" class="grid" style="gap:12px;">
+                    <!-- Notes will be rendered here -->
+                </div>
+            </div>
+        </div>
+    `;
+    renderNotesList();
+}
+
+function renderEvolveSystemGoals() {
+    const content = document.getElementById('evolve-content');
+    const { questName, deadline, paused } = state.deathClock;
+
+    content.innerHTML = `
+        <div class="grid" style="grid-template-columns: 1fr 1fr; gap: 16px;">
+            <!-- Death Clock -->
+            <div class="card" style="padding:12px;">
+                <h3 class="big">Death Clock</h3>
+                <p class="muted small">Your ultimate long-term quest. What is the one thing you want to achieve before your time is up?</p>
+                ${ (deadline && !paused) ? `
+                    <div id="death-clock-running">
+                        <h4 class="big">${questName}</h4>
+                        <div id="dc-timer" class="clock" style="margin: 12px 0;">--:--:--</div>
+                        <div class="controls">
+                            <button id="pause-dc">Pause</button>
+                            <button id="complete-dc" class="success">Complete</button>
+                        </div>
+                    </div>
+                ` : `
+                    <div id="death-clock-setup" style="margin-top:12px;">
+                         <input type="text" id="dc-quest-name" placeholder="Ultimate Quest Name" value="${questName || ''}">
+                         <input type="date" id="dc-deadline" style="margin-top:8px;">
+                         <button id="start-dc" class="success" style="margin-top:8px;">${deadline ? 'Resume' : 'Start the Clock'}</button>
+                    </div>
+                `}
+            </div>
+            
+            <!-- Player Stats -->
+            <div class="card" style="padding:12px;">
+                <h3 class="big">Player Stats</h3>
+                <div id="player-stats-list" class="stat-grid" style="margin-top:12px;">
+                    <!-- Stats will be rendered here by JS -->
+                </div>
+            </div>
+        </div>
+
+        <!-- System Unlocks -->
+        <div class="card" style="padding:12px; margin-top: 16px;">
+            <h3 class="big">System Unlocks</h3>
+            <div id="unlocks-list" class="grid three" style="margin-top:12px; gap: 12px;">
+                <!-- Unlocks will be rendered here by JS -->
+            </div>
+        </div>
+    `;
+
+    renderPlayerStats();
+    renderUnlocks();
+    if (deadline && !paused) {
+        updateDeathClockTimer(); // Initial call
+    }
+}
+
+function renderPlayerStats() {
+    const container = document.getElementById('player-stats-list');
+    if (!container) return;
+    const stats = state.playerData.stats;
+    container.innerHTML = Object.entries(stats).map(([key, value]) => `
+        <div class="stat-item">
+            <div class="big">${value}</div>
+            <div class="muted small">${key.replace(/_/g, ' ')}</div>
+        </div>
+    `).join('');
+}
+
+function renderUnlocks() {
+    const container = document.getElementById('unlocks-list');
+    if (!container) return;
+    // This would be a predefined list in a real scenario
+    const allUnlocks = [
+        { id: 'dc_complete', name: 'Unlock Immortality', desc: 'Complete the Death Clock quest.', unlocked: state.playerData.stats.death_clock_completed },
+        { id: 'boss_slayer', name: 'Boss Slayer', desc: 'Complete 5 Boss Quests.', unlocked: state.playerData.stats.boss_quests_completed >= 5 },
+        { id: 'disciplined', name: 'Disciplined', desc: 'Complete 20 Discipline Quests.', unlocked: state.playerData.stats.discipline_quests_completed >= 20 },
+    ];
+    container.innerHTML = allUnlocks.map(u => `
+        <div class="card stat-item" style="opacity:${u.unlocked ? 1 : 0.5}; border-left: 3px solid ${u.unlocked ? 'var(--accent-2)' : 'var(--glass)'};">
+            <strong>${u.name}</strong>
+            <p class="muted small">${u.desc}</p>
+        </div>
+    `).join('');
+}
+
+let deathClockInterval = null;
+function updateDeathClockTimer() {
+    const timerEl = document.getElementById('dc-timer');
+    if (!timerEl || state.deathClock.paused) {
+        clearInterval(deathClockInterval);
+        return;
+    };
+
+    const now = new Date();
+    const deadline = new Date(state.deathClock.deadline);
+    const diff = deadline - now;
+
+    if (diff <= 0) {
+        timerEl.innerHTML = `Deadline Reached!`;
+        clearInterval(deathClockInterval);
+        return;
+    }
+
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+    const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+    timerEl.innerHTML = `${days}d ${hours}h ${minutes}m ${seconds}s`;
+}
+
+document.getElementById('evolve').addEventListener('click', (e) => {
+    // Death Clock Controls
+    if (e.target.id === 'start-dc') {
+        const name = document.getElementById('dc-quest-name').value.trim();
+        const deadline = document.getElementById('dc-deadline').value;
+        if (!name || !deadline) {
+            alert('Please set a name and deadline for your ultimate quest.');
+            return;
+        }
+        state.deathClock.questName = name;
+        state.deathClock.deadline = deadline;
+        state.deathClock.paused = false;
+        if(deathClockInterval) clearInterval(deathClockInterval);
+        deathClockInterval = setInterval(updateDeathClockTimer, 1000);
+        saveState();
+        renderEvolveSystemGoals();
+    }
+    if (e.target.id === 'pause-dc') {
+        state.deathClock.paused = true;
+        clearInterval(deathClockInterval);
+        saveState();
+        renderEvolveSystemGoals();
+    }
+    if (e.target.id === 'complete-dc') {
+        if (!confirm('Have you truly completed your ultimate quest? This cannot be undone.')) return;
+        state.deathClock.paused = true;
+        state.playerData.stats.death_clock_completed = true;
+        clearInterval(deathClockInterval);
+        saveState();
+        renderEvolveSystemGoals();
+    }
+    // Journal Controls
+    if (e.target.id === 'addNoteBtn') {
+        const title = document.getElementById('noteTitle').value.trim();
+        const content = document.getElementById('noteContent').value.trim();
+        const category = document.getElementById('noteCategory').value;
+        const tags = document.getElementById('noteTags').value.split(',').map(t => t.trim()).filter(Boolean);
+
+        if (!title || !content) {
+            alert('Please provide a title and content for your note.');
+            return;
+        }
+
+        const newNote = {
+            id: 'n' + Date.now(),
+            title,
+            content,
+            category,
+            tags,
+            timestamp: new Date().toISOString()
+        };
+        state.secondBrainNotes.unshift(newNote); // Add to the beginning
+
+        // Award XP for journaling
+        const wordCount = content.split(/\s+/).length;
+        const xpGained = Math.min(50, Math.floor(wordCount * 0.5)); // 0.5 XP per word, capped at 50
+        if (xpGained > 0) {
+            state.playerData.totalXP += xpGained;
+            state.playerData.statXP.mindset += xpGained;
+            state.playerData.dailyXpGained.amount += xpGained;
+            checkLevelUp();
+            showToast(`🧠 +${xpGained} Mindset XP for journaling!`);
+        }
+
+        saveState();
+        renderEvolveJournal();
+    }
+});
+
+function renderNotesList() {
+    const container = document.getElementById('notes-list');
+    if (!container) return;
+    const notes = state.secondBrainNotes;
+
+    if (notes.length === 0) {
+        container.innerHTML = `<div class="muted small" style="padding:10px;">Your second brain is empty. Add a note to get started.</div>`;
+        return;
+    }
+
+    container.innerHTML = notes.map(n => `
+        <div class="note-card">
+            <h4>${n.title}</h4>
+            <p class="muted small">${n.content.substring(0, 100)}...</p>
+            <div style="margin-top:8px; display:flex; gap: 8px; align-items:center;">
+                <span class="pill muted small" style="background:var(--bg);">${n.category}</span>
+                ${n.tags.map(t => `<span class="tag-pill">${t}</span>`).join('')}
+            </div>
+        </div>
+    `).join('');
+}
+
+function openQuestModal() {
+    const modal = document.createElement('div');
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;z-index:2000;';
+    modal.innerHTML = `
+        <div class="card" style="padding:20px;max-width:480px;width:90%;">
+            <h2 class="big">Add New Quest</h2>
+            <div class="grid" style="gap:10px;margin-top:12px;">
+                <input id="questName" placeholder="Quest Name">
+                <textarea id="questDesc" placeholder="Description..." rows="3"></textarea>
+                <select id="questType">
+                    <option value="Main">Main Quest</option>
+                    <option value="Side">Side Quest</option>
+                    <option value="Daily">Daily Quest</option>
+                </select>
+                <select id="questStat">
+                    <option value="work">Work</option>
+                    <option value="learning">Learning</option>
+                    <option value="finance">Finance</option>
+                    <option value="health">Health</option>
+                    <option value="mindset">Mindset</option>
+                    <option value="relationships">Relationships</option>
+                    <option value="discipline">Discipline</option>
+                    <option value="purpose">Purpose</option>
+                </select>
+                <input id="questXP" type="number" placeholder="XP Reward">
+            </div>
+            <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px;">
+                <button id="cancelQuest">Cancel</button>
+                <button id="saveQuest" class="success">Save Quest</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+
+    modal.querySelector('#cancelQuest').onclick = () => modal.remove();
+    modal.querySelector('#saveQuest').onclick = () => {
+        const name = document.getElementById('questName').value.trim();
+        const description = document.getElementById('questDesc').value.trim();
+        const type = document.getElementById('questType').value;
+        const stat = document.getElementById('questStat').value;
+        const xp = parseInt(document.getElementById('questXP').value || 0, 10);
+
+        if (!name || !xp) {
+            alert('Please provide a name and XP value for the quest.');
+            return;
+        }
+
+        const newQuest = {
+            id: 'q' + Date.now(),
+            name,
+            description,
+            type,
+            stat,
+            xp
+        };
+        state.activeQuests.push(newQuest);
+        saveState();
+        modal.remove();
+        if(activeEvolveTab === 'quests') renderEvolveQuests();
+    };
+}
+
+/* ========================
+   Finance Logic
+   ======================== */
+
+document.getElementById('evolve').addEventListener('click', (e) => {
+    // Complete Quest Button
+    if (e.target.matches('.complete-quest-btn')) {
+        const questId = e.target.dataset.id;
+        completeQuest(questId);
+    }
+    // Add Quest Button
+    if (e.target.matches('#addQuestBtn')) {
+        openQuestModal();
+    }
+    // Filter Pills
+    if (e.target.matches('.quest-type-pills .view-btn')) {
+        document.querySelectorAll('.quest-type-pills .view-btn').forEach(b => b.classList.remove('active'));
+        e.target.classList.add('active');
+        renderQuestList(e.target.dataset.filter);
+    }
+});
+
+function completeQuest(questId) {
+    const questIndex = state.activeQuests.findIndex(q => q.id === questId);
+    if (questIndex === -1) return;
+
+    const [quest] = state.activeQuests.splice(questIndex, 1);
+    quest.completedAt = new Date().toISOString();
+    state.completedQuests.push(quest);
+
+    // Award XP and check for level up
+    state.playerData.totalXP += quest.xp;
+    state.playerData.dailyXpGained.amount += quest.xp;
+    checkLevelUp();
+
+    saveState();
+    if (activeEvolveTab === 'quests') renderEvolveQuests();
+}
+
+let evolveRadarChartInstance = null;
+function renderRadarChart() {
+    const ctx = document.getElementById('evolve-radar-chart')?.getContext('2d');
+    if (!ctx) return;
+
+    // Calculate stats from completed quests
+    const stats = state.completedQuests.reduce((acc, q) => {
+        if (q.stat) {
+            acc[q.stat] = (acc[q.stat] || 0) + q.xp;
+        }
+        return acc;
+    }, {});
+
+    const labels = ['Work', 'Learning', 'Finance', 'Health', 'Mindset', 'Relationships', 'Discipline', 'Purpose'];
+    const data = labels.map(l => stats[l.toLowerCase()] || 0);
+
+    if (evolveRadarChartInstance) {
+        evolveRadarChartInstance.destroy();
+    }
+    evolveRadarChartInstance = new Chart(ctx, {
+        type: 'radar',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'XP Gained',
+                data: data,
+                backgroundColor: 'rgba(159, 120, 255, 0.3)',
+                borderColor: 'rgba(159, 120, 255, 1)',
+                borderWidth: 2
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                r: {
+                    angleLines: { color: 'rgba(255,255,255,0.1)' },
+                    grid: { color: 'rgba(255,255,255,0.1)' },
+                    pointLabels: { color: '#e6eef8', font: { size: 12 } },
+                    ticks: { display: false, backdropColor: 'transparent' }
+                }
+            },
+            plugins: {
+                legend: { display: false }
+            }
+        }
+    });
+}
+
+function renderDailyQuote() {
+    const quotes = [
+        { text: "The only way to do great work is to love what you do.", author: "Steve Jobs" },
+        { text: "Success is not final, failure is not fatal: it is the courage to continue that counts.", author: "Winston Churchill" },
+        { text: "Believe you can and you're halfway there.", author: "Theodore Roosevelt" },
+        { text: "The future belongs to those who believe in the beauty of their dreams.", author: "Eleanor Roosevelt" },
+        { text: "The journey of a thousand miles begins with a single step.", author: "Lao Tzu" }
+    ];
+    const quote = quotes[Math.floor(Math.random() * quotes.length)];
+    const quoteEl = document.getElementById("evolve-daily-quote");
+    const authorEl = document.getElementById("evolve-daily-quote-author");
+    if (quoteEl) quoteEl.textContent = `"${quote.text}"`;
+    if (authorEl) authorEl.textContent = `— ${quote.author}`;
+}
+
+function checkLevelUp() {
+    const { level, totalXP } = state.playerData;
+    const xpForNextLevel = 100 * Math.pow(1.5, level - 1);
+    if (totalXP >= xpForNextLevel) {
+        state.playerData.level++;
+        // Optionally show a notification/toast for level up
+        showToast(`🎉 Level Up! You've reached Level ${state.playerData.level}!`);
+    }
+}
+
+const expenseCategories = ['Food', 'Transport', 'Shopping', 'Bills', 'Entertainment', 'Healthcare', 'Education', 'Other'];
+const incomeCategories = ['Salary', 'Business', 'Investment', 'Gift', 'Other'];
+let expensePieChartInstance = null; // To hold the chart instance
+
+function renderFinance() {
+    // Manages rendering for the entire finance tab
+    const activeView = document.querySelector('#finance-nav .view-btn.active').dataset.view;
+    
+    document.querySelectorAll('.finance-view').forEach(v => {
+        v.style.display = v.id === activeView ? 'block' : 'none';
+    });
+
+    switch(activeView) {
+        case 'finance-dashboard':
+            renderFinanceDashboard();
+            break;
+        case 'finance-transactions':
+            renderTransactionView();
+            break;
+        case 'finance-loans':
+            renderLoansView();
+            break;
+        case 'finance-goals':
+            renderGoalsView();
+            break;
+        case 'finance-investments':
+            renderInvestmentsView();
+            break;
+    }
+}
+
+function renderTransactionView() {
+    populateCategories();
+    renderTransactions();
+    document.getElementById('transactionDate').valueAsDate = new Date();
+}
+
+function populateCategories() {
+    const type = document.getElementById('transactionType').value;
+    const categorySelect = document.getElementById('transactionCategory');
+    const filterSelect = document.getElementById('transactionCategoryFilter');
+    const categories = type === 'expense' ? expenseCategories : incomeCategories;
+
+    categorySelect.innerHTML = categories.map(c => `<option value="${c}">${c}</option>`).join('');
+
+    // Repopulate filter dropdown with all categories
+    const allCategories = [...new Set([...expenseCategories, ...incomeCategories])];
+    const currentFilterVal = filterSelect.value;
+    filterSelect.innerHTML = '<option value="all">All Categories</option>' + allCategories.map(c => `<option value="${c}">${c}</option>`).join('');
+    filterSelect.value = currentFilterVal;
+}
+
+function addTransaction() {
+    const date = document.getElementById('transactionDate').value;
+    const type = document.getElementById('transactionType').value;
+    const amount = parseFloat(document.getElementById('transactionAmount').value);
+    const category = document.getElementById('transactionCategory').value;
+    const head = document.getElementById('transactionHead').value.trim();
+    const notes = document.getElementById('transactionNotes').value.trim();
+
+    if (!date || !amount || !head) {
+        alert('Please fill in Date, Amount, and Head/Description.');
+        return;
+    }
+
+    state.finance.transactions.push({
+        id: 't' + Date.now(),
+        date,
+        type,
+        amount,
+        category,
+        head,
+        notes
+    });
+
+    // Clear form
+    document.getElementById('transactionAmount').value = '';
+    document.getElementById('transactionHead').value = '';
+    document.getElementById('transactionNotes').value = '';
+    
+    saveState(); // Will trigger renderAll -> renderFinance -> renderTransactionView
+}
+
+function renderTransactions() {
+    const listContainer = document.getElementById('transactionList');
+    const timeFilter = document.getElementById('transactionTimeFilter').value;
+    const categoryFilter = document.getElementById('transactionCategoryFilter').value;
+
+    const now = new Date();
+    const currentMonth = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+
+    const filtered = state.finance.transactions.filter(t => {
+        const monthMatch = timeFilter === 'month' ? t.date.startsWith(currentMonth) : true;
+        const categoryMatch = categoryFilter === 'all' ? true : t.category === categoryFilter;
+        return monthMatch && categoryMatch;
+    });
+
+    listContainer.innerHTML = '';
+    if (filtered.length === 0) {
+        listContainer.innerHTML = '<div class="muted small" style="padding: 10px;">No transactions found for the selected filters.</div>';
+    } else {
+        filtered.sort((a,b) => new Date(b.date) - new Date(a.date)).forEach(t => {
+            const row = document.createElement('div');
+            row.className = 'transaction-row';
+            const amountClass = t.type === 'income' ? 'income' : 'expense';
+            row.innerHTML = `
+                <div class="small-muted">${t.date.slice(5)}</div>
+                <div>
+                    <strong>${t.head}</strong>
+                    <div class="small-muted">${t.category}</div>
+                </div>
+                <div class="small-muted" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${t.notes}">${t.notes}</div>
+                <div class="${amountClass}" style="font-weight: 600;">${fmtCurrency(t.amount)}</div>
+                <button class="danger remove-transaction" data-id="${t.id}" style="padding: 4px 8px; font-size: 11px;">X</button>
+            `;
+            listContainer.appendChild(row);
+        });
+    }
+    renderExpenseChart();
+}
+
+function removeTransaction(id) {
+    state.finance.transactions = state.finance.transactions.filter(t => t.id !== id);
+    saveState();
+}
+
+function renderExpenseChart() {
+    const canvas = document.getElementById('expensePieChart');
+    const ctx = canvas.getContext('2d');
+    
+    const expenses = state.finance.transactions.filter(t => t.type === 'expense');
+    const expenseByCat = expenses.reduce((acc, t) => {
+        acc[t.category] = (acc[t.category] || 0) + t.amount;
+        return acc;
+    }, {});
+
+    const labels = Object.keys(expenseByCat);
+    const data = Object.values(expenseByCat);
+
+    const chartData = {
+        labels: labels,
+        datasets: [{
+            data: data,
+            backgroundColor: ['#4f9cff', '#7ce7b0', '#ffd166', '#a78bfa', '#f472b6', '#fb923c', '#ff7b7b', '#9aa7bf'],
+            borderWidth: 0,
+        }]
+    };
+    
+    if (expensePieChartInstance) {
+        expensePieChartInstance.destroy();
+    }
+
+    if (labels.length > 0) {
+        expensePieChartInstance = new Chart(ctx, {
+            type: 'pie',
+            data: chartData,
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: {
+                            color: '#e6eef8',
+                            boxWidth: 12,
+                            padding: 15,
+                        }
+                    }
+                }
+            }
+        });
+    } else {
+        // Draw placeholder text if no data
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.save();
+        ctx.textAlign = 'center';
+        ctx.fillStyle = 'var(--muted)';
+        ctx.font = '14px Inter';
+        ctx.fillText('No expense data to display', canvas.width / 2, canvas.height / 2);
+        ctx.restore();
+    }
+}
+
+function renderLoansView() {
+    document.getElementById('loanDate').valueAsDate = new Date();
+    renderLoans();
+}
+
+function addLoan() {
+    const type = document.getElementById('loanType').value;
+    const date = document.getElementById('loanDate').value;
+    const person = document.getElementById('loanPerson').value.trim();
+    const amount = parseFloat(document.getElementById('loanAmount').value);
+    const purpose = document.getElementById('loanPurpose').value.trim();
+    const returnDate = document.getElementById('loanReturnDate').value;
+
+    if (!date || !person || !amount || !purpose) {
+        alert('Please fill in all fields.');
+        return;
+    }
+
+    state.finance.loans.push({
+        id: 'l' + Date.now(),
+        type,
+        date,
+        person,
+        amount,
+        purpose,
+        returnDate,
+        settled: false
+    });
+
+    // Clear form
+    document.getElementById('loanPerson').value = '';
+    document.getElementById('loanAmount').value = '';
+    document.getElementById('loanPurpose').value = '';
+    document.getElementById('loanReturnDate').value = '';
+
+    saveState();
+}
+
+function renderLoans() {
+    const givenList = document.getElementById('loansGivenList');
+    const takenList = document.getElementById('loansTakenList');
+    givenList.innerHTML = '';
+    takenList.innerHTML = '';
+
+    let totalReceivable = 0;
+    let totalPayable = 0;
+
+    const loans = state.finance.loans;
+    
+    loans.sort((a,b) => new Date(b.date) - new Date(a.date)).forEach(loan => {
+        const list = loan.type === 'given' ? givenList : takenList;
+        if (!loan.settled) {
+            if (loan.type === 'given') totalReceivable += loan.amount;
+            else totalPayable += loan.amount;
+        }
+
+        const row = document.createElement('div');
+        row.className = 'activity-row';
+        row.style.opacity = loan.settled ? 0.5 : 1;
+        row.innerHTML = `
+            <div style="flex: 1;">
+                <strong>${loan.person} - ${fmtCurrency(loan.amount)}</strong>
+                <div class="small-muted">${loan.purpose} | Due: ${loan.returnDate || 'N/A'}</div>
+            </div>
+            <div class="controls">
+                <button class="${loan.settled ? 'success' : 'muted'} toggle-settled" data-id="${loan.id}" style="padding: 4px 8px; font-size: 11px;">
+                    ${loan.settled ? 'Settled' : 'Unsettle'}
+                </button>
+                <button class="danger remove-loan" data-id="${loan.id}" style="padding: 4px 8px; font-size: 11px;">X</button>
+            </div>
+        `;
+        list.appendChild(row);
+    });
+    
+    if (givenList.innerHTML === '') givenList.innerHTML = '<div class="muted small" style="padding: 10px;">No receivables.</div>';
+    if (takenList.innerHTML === '') takenList.innerHTML = '<div class="muted small" style="padding: 10px;">No payables.</div>';
+
+    document.getElementById('totalReceivable').textContent = fmtCurrency(totalReceivable);
+    document.getElementById('totalPayable').textContent = fmtCurrency(totalPayable);
+}
+
+function toggleLoanSettled(id) {
+    const loan = state.finance.loans.find(l => l.id === id);
+    if (loan) {
+        loan.settled = !loan.settled;
+        saveState();
+    }
+}
+
+function removeLoan(id) {
+    state.finance.loans = state.finance.loans.filter(l => l.id !== id);
+    saveState();
+}
+
+function handleLoanListClick(e) {
+    const id = e.target.dataset.id;
+    if (e.target.matches('.toggle-settled')) {
+        toggleLoanSettled(id);
+    }
+    if (e.target.matches('.remove-loan')) {
+        if (confirm('Are you sure you want to delete this loan record?')) {
+            removeLoan(id);
+        }
+    }
+}
+
+function renderGoalsView() {
+    document.getElementById('goalTargetDate').valueAsDate = new Date();
+    renderGoals();
+}
+
+function addGoal() {
+    const name = document.getElementById('goalName').value.trim();
+    const targetAmount = parseFloat(document.getElementById('goalTargetAmount').value);
+    const targetDate = document.getElementById('goalTargetDate').value;
+
+    if (!name || !targetAmount || !targetDate) {
+        alert('Please fill in all fields for the goal.');
+        return;
+    }
+
+    state.finance.goals.push({
+        id: 'g' + Date.now(),
+        name,
+        targetAmount,
+        currentAmount: 0,
+        targetDate
+    });
+
+    // Clear form
+    document.getElementById('goalName').value = '';
+    document.getElementById('goalTargetAmount').value = '';
+
+    saveState();
+}
+
+function renderGoals() {
+    const listContainer = document.getElementById('goalsList');
+    listContainer.innerHTML = '';
+
+    if (state.finance.goals.length === 0) {
+        listContainer.innerHTML = '<div class="muted small" style="padding: 10px;">No financial goals set. Create one to get started!</div>';
+        return;
+    }
+
+    state.finance.goals.forEach(goal => {
+        const progress = Math.min(100, (goal.currentAmount / goal.targetAmount) * 100);
+        const today = new Date();
+        const target = new Date(goal.targetDate);
+        const daysRemaining = Math.max(0, Math.ceil((target - today) / (1000 * 60 * 60 * 24)));
+
+        const card = document.createElement('div');
+        card.className = 'card';
+        card.style.padding = '12px';
+        card.innerHTML = `
+            <div style="display:flex; justify-content: space-between; align-items: center;">
+                <strong style="font-size: 16px;">${goal.name}</strong>
+                <button class="danger remove-goal" data-id="${goal.id}" style="padding: 4px 8px; font-size: 11px;">X</button>
+            </div>
+            <div class="progress-bar" style="margin-top: 8px;">
+                <div class="progress-bar-inner" style="width: ${progress}%;"</div>
+            </div>
+            <div class="small-muted" style="margin-top: 8px; display: flex; justify-content: space-between;">
+                <span>${fmtCurrency(goal.currentAmount)} / ${fmtCurrency(goal.targetAmount)}</span>
+                <span>${daysRemaining} days left</span>
+            </div>
+            <div class="controls" style="margin-top: 12px; display: flex; gap: 8px;">
+                <input type="number" class="add-savings-amount" placeholder="Add (₹)" style="flex: 1;">
+                <button class="success add-savings-btn" data-id="${goal.id}">Add</button>
+            </div>
+        `;
+        listContainer.appendChild(card);
+    });
+}
+
+function addSavingsToGoal(id, amount) {
+    const goal = state.finance.goals.find(g => g.id === id);
+    if (goal && amount > 0) {
+        goal.currentAmount += amount;
+        saveState();
+    }
+}
+
+function removeGoal(id) {
+    state.finance.goals = state.finance.goals.filter(g => g.id !== id);
+    saveState();
+}
+
+function handleGoalsListClick(e) {
+    const id = e.target.dataset.id;
+    if (e.target.matches('.add-savings-btn')) {
+        const amountInput = e.target.previousElementSibling;
+        const amount = parseFloat(amountInput.value);
+        if (amount > 0) {
+            addSavingsToGoal(id, amount);
+            amountInput.value = '';
+        } else {
+            alert('Please enter a valid amount to add.');
+        }
+    }
+    if (e.target.matches('.remove-goal')) {
+        if (confirm('Are you sure you want to delete this financial goal?')) {
+            removeGoal(id);
+        }
+    }
+}
+
+/* ===========================================================
+   FocusFlow Finance Module: Investment Lifecycle (v3)
+   Includes Add → Edit → Close → Auto-Mature → Toast
+   =========================================================== */
+
+/* ---------- ADD NEW INVESTMENT MODAL ---------- */
+document.getElementById('addInvestmentBtn').addEventListener('click', () => {
+  const modal = document.createElement('div');
+  modal.style.cssText = `
+    position:fixed;inset:0;background:rgba(0,0,0,0.7);
+    display:flex;align-items:center;justify-content:center;z-index:2000;
+  `;
+  modal.innerHTML = `
+    <div class="card" style="padding:20px;max-width:480px;width:90%;">
+      <h2 class="big">Add New Investment</h2>
+      <select id="invType" style="margin-bottom:8px;width:100%;">
+        <option value="rd">Recurring Deposit (RD)</option>
+        <option value="sip">Systematic Investment Plan (SIP)</option>
+      </select>
+      <input id="invName" placeholder="Name (e.g., SBI RD)" style="width:100%;margin-bottom:8px;">
+      <input id="invMonthly" type="number" placeholder="Monthly Amount (₹)" style="width:100%;margin-bottom:8px;">
+      <input id="invStart" type="date" style="width:100%;margin-bottom:8px;">
+      <input id="invTarget" type="date" style="width:100%;margin-bottom:8px;">
+      <input id="invRate" type="number" placeholder="Interest/Return Rate (%)" style="width:100%;margin-bottom:8px;">
+      <input id="invEntity" placeholder="Bank / AMC" style="width:100%;margin-bottom:8px;">
+      <textarea id="invNotes" placeholder="Notes (optional)" rows="2" style="width:100%;margin-bottom:8px;"></textarea>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px;">
+        <button id="cancelInv">Cancel</button>
+        <button id="saveInv" class="success">Save Investment</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+
+  modal.querySelector('#cancelInv').onclick = () => modal.remove();
+
+  modal.querySelector('#saveInv').onclick = () => {
+    const type = document.getElementById('invType').value;
+    const name = document.getElementById('invName').value.trim();
+    const monthly = parseFloat(document.getElementById('invMonthly').value || 0);
+    const startDate = document.getElementById('invStart').value;
+    const targetDate = document.getElementById('invTarget').value;
+    const rate = parseFloat(document.getElementById('invRate').value || 0);
+    const entity = document.getElementById('invEntity').value.trim();
+    const notes = document.getElementById('invNotes').value.trim();
+
+    if (!name || !monthly || !startDate) {
+      alert('Please fill required fields: Name, Monthly Amount, Start Date');
+      return;
+    }
+
+    const invObj = {
+      id: 'inv' + Date.now(),
+      name,
+      monthlyAmount: monthly,
+      startDate,
+      maturityDate: targetDate || null,
+      expectedReturnRate: rate || 0,
+      bank: entity || '',
+      notes,
+      status: 'active'
+    };
+
+    if (type === 'rd') state.finance.investments.rds.push(invObj);
+    else state.finance.investments.sips.push(invObj);
+
+    saveState();
+    modal.remove();
+    renderInvestmentsView();
+  };
+});
+
+/* ---------- RENDER FINANCE WITH ALL STATES ---------- */
+function renderInvestmentsView() {
+  autoCloseMaturedInvestments(); // auto-check each render
+
+  const allRDs = state.finance.investments.rds || [];
+  const allSIPs = state.finance.investments.sips || [];
+  const active = [...allRDs, ...allSIPs].filter(i => i.status !== 'closed');
+  const closed = [...allRDs, ...allSIPs].filter(i => i.status === 'closed');
+
+  // --- Summary ---
+  const totalInvested = active.reduce((sum, inv) => {
+    const months = calculateMonthsSince(inv.startDate);
+    return sum + (inv.monthlyAmount || 0) * months;
+  }, 0);
+
+  document.getElementById('investmentsCount').textContent = active.length;
+  document.getElementById('investmentsMonthly').textContent = fmtCurrency(active.reduce((a,b)=>a+(b.monthlyAmount||0),0));
+  document.getElementById('investmentsTotal').textContent = fmtCurrency(totalInvested);
+  
+  const expectedReturns = active.reduce((sum, inv) => {
+    const tenureInMonths = calculateMonthsSince(inv.startDate);
+    const maturity = calculateMaturityValue(inv.monthlyAmount, inv.expectedReturnRate, tenureInMonths);
+    const totalPrincipal = (inv.monthlyAmount || 0) * tenureInMonths;
+    return sum + (maturity - totalPrincipal);
+  }, 0);
+  document.getElementById('investmentsReturns').textContent = fmtCurrency(expectedReturns);
+
+  const renderCard = (inv,type)=>`
+    <div class="card" style="padding:12px;opacity:${inv.status==='closed'?0.6:1};">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <strong>${inv.name}</strong>
+        <div style="display:flex;gap:6px;align-items:center;">
+          <span class="small-muted">${inv.status==='closed'?'Closed':'Active'}</span>
+          ${inv.status!=='closed'
+            ? `<button class="small-muted" onclick="openEditInvestment('${inv.id}','${type}')">Edit</button>
+               <button class="danger" onclick="closeInvestment('${inv.id}','${type}')">Close</button>`
+            : `<button class="small-muted" onclick="reopenInvestment('${inv.id}','${type}')">Reopen</button>`}
+        </div>
+      </div>
+      <div class="muted small" style="margin-top:6px;">
+        ₹${inv.monthlyAmount} / month — ${inv.bank || '—'} <br>
+        Rate: ${inv.expectedReturnRate || 0}% | Start: ${inv.startDate} | ${inv.maturityDate ? 'End: '+inv.maturityDate : ''}
+      </div>
+      <div class="small-muted" style="margin-top:4px;">${inv.notes || ''}</div>
+    </div>`;
+
+  document.getElementById('rdList').innerHTML = allRDs.filter(i=>i.status!=='closed').map(rd=>renderCard(rd,'rd')).join('') || '<div class="muted small">No active RDs.</div>';
+  document.getElementById('sipList').innerHTML = allSIPs.filter(i=>i.status!=='closed').map(sip=>renderCard(sip,'sip')).join('') || '<div class="muted small">No active SIPs.</div>';
+
+  let closedSection = document.getElementById('closedInvestments');
+  if (!closedSection) {
+    const container = document.querySelector('#finance-investments');
+    const section = document.createElement('div');
+    section.className = 'card';
+    section.style = 'padding:16px;margin-top:16px;';
+    section.innerHTML = `<h3 class="big">Closed Investments</h3><div id="closedInvestments"></div>`;
+    container.appendChild(section);
+    closedSection = document.getElementById('closedInvestments');
+  }
+
+  closedSection.innerHTML = closed.length
+    ? closed.map(i => renderCard(i, allRDs.includes(i)?'rd':'sip')).join('')
+    : '<div class="muted small">No closed investments yet.</div>';
+}
+
+/* ---------- EDIT INVESTMENT MODAL ---------- */
+function openEditInvestment(id,type){
+  const arr = type==='rd'?state.finance.investments.rds:state.finance.investments.sips;
+  const inv = arr.find(i=>i.id===id);
+  if(!inv) return alert('Investment not found');
+
+  const modal = document.createElement('div');
+  modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;z-index:2000;';
+  modal.innerHTML=`
+    <div class="card" style="padding:20px;max-width:480px;width:90%;">
+      <h2 class="big">Edit Investment</h2>
+      <input id="editName" value="${inv.name}" style="width:100%;margin-bottom:8px;">
+      <input id="editMonthly" type="number" value="${inv.monthlyAmount}" style="width:100%;margin-bottom:8px;">
+      <input id="editStart" type="date" value="${inv.startDate}" style="width:100%;margin-bottom:8px;">
+      <input id="editTarget" type="date" value="${inv.maturityDate||''}" style="width:100%;margin-bottom:8px;">
+      <input id="editRate" type="number" value="${inv.expectedReturnRate}" style="width:100%;margin-bottom:8px;">
+      <input id="editEntity" value="${inv.bank||''}" placeholder="Bank / AMC" style="width:100%;margin-bottom:8px;">
+      <textarea id="editNotes" rows="2" style="width:100%;margin-bottom:8px;">${inv.notes||''}</textarea>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px;">
+        <button id="cancelEdit">Cancel</button>
+        <button id="saveEdit" class="success">Save</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+
+  modal.querySelector('#cancelEdit').onclick=()=>modal.remove();
+  modal.querySelector('#saveEdit').onclick=()=>{
+    inv.name=document.getElementById('editName').value.trim();
+    inv.monthlyAmount=parseFloat(document.getElementById('editMonthly').value||0);
+    inv.startDate=document.getElementById('editStart').value;
+    inv.maturityDate=document.getElementById('editTarget').value;
+    inv.expectedReturnRate=parseFloat(document.getElementById('editRate').value||0);
+    inv.bank=document.getElementById('editEntity').value.trim();
+    inv.notes=document.getElementById('editNotes').value.trim();
+    saveState();
+    modal.remove();
+    renderInvestmentsView();
+  };
+}
+
+/* ---------- CLOSE / REOPEN ---------- */
+function closeInvestment(id,type){
+  if(!confirm('Mark this investment as Closed / Matured?')) return;
+  const arr=type==='rd'?state.finance.investments.rds:state.finance.investments.sips;
+  const inv=arr.find(i=>i.id===id);
+  if(inv){inv.status='closed';inv.closedAt=new Date().toISOString();saveState();renderInvestmentsView();}
+}
+function reopenInvestment(id,type){
+  const arr=type==='rd'?state.finance.investments.rds:state.finance.investments.sips;
+  const inv=arr.find(i=>i.id===id);
+  if(inv){inv.status='active';saveState();renderInvestmentsView();}
+}
+
+/* ---------- AUTO-CLOSE MATURED INVESTMENTS ---------- */
+function autoCloseMaturedInvestments(){
+  const todayKey=new Date().toISOString().split('T')[0];
+  let closedCount=0;
+  const check=(arr)=>arr.forEach(inv=>{
+    const maturity=inv.maturityDate||inv.targetDate;
+    if(inv.status!=='closed' && maturity && maturity<=todayKey){
+      inv.status='closed';inv.closedAt=new Date().toISOString();closedCount++;
+    }
+  });
+  check(state.finance.investments.rds);check(state.finance.investments.sips);
+  if(closedCount>0){saveState();showToast(`🎉 ${closedCount} investment${closedCount>1?'s':''} matured today! Tap to view.`);}
+}
+
+/* ---------- TOAST SYSTEM (CLICKABLE) ---------- */
+window.showToast = function(message) {
+  let container=document.getElementById('toastContainer');
+  if(!container){container=document.createElement('div');container.id='toastContainer';container.style.cssText='position:fixed;bottom:20px;right:20px;display:flex;flex-direction:column;gap:10px;z-index:3000;';document.body.appendChild(container);}
+  const toast=document.createElement('div');
+  toast.className='toast';
+  toast.textContent=message;
+  toast.style.cssText=`
+    background:#222;color:#fff;padding:12px 18px;border-radius:12px;
+    box-shadow:0 2px 8px rgba(0,0,0,0.25);font-size:0.9rem;
+    display:flex;align-items:center;gap:8px;cursor:pointer;
+    animation:fadeInOut 5s ease forwards;transition:transform .2s ease,background .2s ease;
+  `;
+  toast.onmouseenter=()=>toast.style.background='#333';
+  toast.onmouseleave=()=>toast.style.background='#222';
+  toast.onclick=()=>{
+    const section=document.getElementById('closedInvestments');
+    if(section){section.scrollIntoView({behavior:'smooth',block:'center'});
+      section.classList.add('highlightPulse');setTimeout(()=>section.classList.remove('highlightPulse'),2000);}
+  };
+  container.appendChild(toast);
+  setTimeout(()=>toast.remove(),5000);
+}
+const style=document.createElement('style');
+style.textContent=`@keyframes fadeInOut{0%{opacity:0;transform:translateY(10px);}10%{opacity:1;transform:translateY(0);}90%{opacity:1;}100%{opacity:0;transform:translateY(10px);}}
+.highlightPulse{outline:3px solid #4ade80;box-shadow:0 0 10px #4ade80;transition:box-shadow .3s ease;}`;
+document.head.appendChild(style);
+
+/* ---------- INITIALIZATION ---------- */
+document.addEventListener('DOMContentLoaded',()=>{autoCloseMaturedInvestments();});
+
+let topExpensesChartInstance = null;
+
+function renderFinanceDashboard() {
+    const transactions = state.finance.transactions;
+
+    // 1. Calculate and render overview cards
+    const totalIncome = transactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
+    const totalExpenses = transactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
+    const netBalance = totalIncome - totalExpenses;
+
+    document.getElementById('dashboardIncome').textContent = fmtCurrency(totalIncome);
+    document.getElementById('dashboardExpenses').textContent = fmtCurrency(totalExpenses);
+    document.getElementById('dashboardBalance').textContent = fmtCurrency(netBalance);
+    const balanceEl = document.getElementById('dashboardBalance');
+    balanceEl.classList.toggle('income', netBalance > 0);
+    balanceEl.classList.toggle('expense', netBalance < 0);
+
+    // 2. Render Monthly Trend Chart
+    renderMonthlyTrend();
+
+    // 3. Render Top Expenses Chart
+    const expenseByCat = transactions.filter(t => t.type === 'expense').reduce((acc, t) => {
+        acc[t.category] = (acc[t.category] || 0) + t.amount;
+        return acc;
+    }, {});
+    const sortedExpenses = Object.entries(expenseByCat).sort((a,b) => b[1] - a[1]).slice(0, 5);
+    
+    const expenseLabels = sortedExpenses.map(item => item[0]);
+    const expenseCatData = sortedExpenses.map(item => item[1]);
+
+    const topExpCanvas = document.getElementById('topExpensesChart');
+    if (topExpensesChartInstance) topExpensesChartInstance.destroy();
+    topExpensesChartInstance = new Chart(topExpCanvas.getContext('2d'), {
+        type: 'bar',
+        data: {
+            labels: expenseLabels,
+            datasets: [{ label: 'Amount', data: expenseCatData, backgroundColor: ['#4f9cff', '#7ce7b0', '#ffd166', '#a78bfa', '#f472b6'] }]
+        },
+        options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#9aa7bf' } }, y: { ticks: { color: '#9aa7bf' } } } }
+    });
+
+    // 4. Generate Smart Insights
+    const insights = [];
+    const savingsRate = totalIncome > 0 ? ((totalIncome - totalExpenses) / totalIncome * 100).toFixed(1) : 0;
+    insights.push(`Your savings rate is <strong>${savingsRate}%</strong>.`);
+    if (sortedExpenses.length > 0) {
+        insights.push(`Your highest spending category is <strong>${sortedExpenses[0][0]}</strong>.`);
+    }
+    const activeGoals = state.finance.goals.length;
+    if (activeGoals > 0) insights.push(`You are tracking <strong>${activeGoals}</strong> financial goal(s).`);
+    
+    const outstandingLoans = state.finance.loans.filter(l => !l.settled).length;
+    if (outstandingLoans > 0) insights.push(`You have <strong>${outstandingLoans}</strong> outstanding loan(s).`);
+
+    document.getElementById('smartInsights').innerHTML = insights.map(i => `<li>${i}</li>`).join('');
+}
+
+
+// Event Listeners for Finance Tab
+document.getElementById('finance-nav').addEventListener('click', (e) => {
+    if (e.target.matches('.view-btn')) {
+        document.querySelectorAll('#finance-nav .view-btn').forEach(b => b.classList.remove('active'));
+        e.target.classList.add('active');
+        renderFinance();
+    }
+});
+document.getElementById('transactionType').addEventListener('change', populateCategories);
+document.getElementById('addTransactionBtn').addEventListener('click', addTransaction);
+document.getElementById('transactionTimeFilter').addEventListener('change', renderTransactions);
+document.getElementById('transactionCategoryFilter').addEventListener('change', renderTransactions);
+document.getElementById('transactionList').addEventListener('click', (e) => {
+    if (e.target.matches('.remove-transaction')) {
+        if (confirm('Are you sure you want to delete this transaction?')) {
+            removeTransaction(e.target.dataset.id);
+        }
+    }
+});
+document.getElementById('addLoanBtn').addEventListener('click', addLoan);
+document.getElementById('loansGivenList').addEventListener('click', handleLoanListClick);
+document.getElementById('loansTakenList').addEventListener('click', handleLoanListClick);
+document.getElementById('addGoalBtn').addEventListener('click', addGoal);
+document.getElementById('goalsList').addEventListener('click', handleGoalsListClick);
+
+
+/* ========================
+   Backup / Import / Reset
+   ======================== */
+document.getElementById('exportBtn').addEventListener('click', downloadBackup);
+document.getElementById('backupNow').addEventListener('click', downloadBackup);
+
+function downloadBackup(){
+  const data = JSON.stringify(state, null, 2);
+  const blob = new Blob([data], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = `focusflow-backup-${new Date().toISOString().slice(0,10)}.json`; a.click();
+  URL.revokeObjectURL(url);
+}
+
+document.getElementById('importBtn').addEventListener('click', ()=> document.getElementById('importFile').click());
+document.getElementById('importFile').addEventListener('change', async (e)=> {
+  const f = e.target.files[0]; if(!f) return;
+  try{
+    const txt = await f.text(); const parsed = JSON.parse(txt);
+    if(!confirm('Import will overwrite local data. Are you sure?')) return;
+    state = parsed; saveState();
+    alert('Import successful');
+  }catch(err){ alert('Import failed: '+err.message); }
+});
+
+document.getElementById('copyJson').addEventListener('click', async ()=>{
+  try{
+    await navigator.clipboard.writeText(JSON.stringify(state));
+    alert('JSON copied to clipboard');
+  }catch(e){ alert('Clipboard failed: '+e.message); }
+});
+
+document.getElementById('clearData').addEventListener('click', ()=>{
+  if(!confirm('Reset will erase all local data. Export first if you want a copy. Proceed?')) return;
+  localStorage.removeItem(STORAGE_KEY);
+  state = structuredClone(defaultState);
+  state.createdAt = new Date().toISOString();
+  saveState();
+  alert('All data has been reset successfully!');
+  location.reload(); // Reload page to ensure clean state
+});
+
+/* Settings save */
+document.getElementById('workHours').addEventListener('change', (e)=> { state.settings.workHours = parseFloat(e.target.value)||8; saveState(); });
+document.getElementById('reminder1').addEventListener('change', (e)=> { state.settings.reminders[0] = e.target.value; saveState(); });
+document.getElementById('reminder2').addEventListener('change', (e)=> { state.settings.reminders[1] = e.target.value; saveState(); });
+
+/* Buttons wiring */
+document.getElementById('clockCategory').addEventListener('change', (e) => {
+  const otherCategoryInput = document.getElementById('otherCategory');
+  if (e.target.value === 'Other') {
+    otherCategoryInput.style.display = 'block';
+  } else {
+    otherCategoryInput.style.display = 'none';
+  }
+});
+document.getElementById('clockInBtn').addEventListener('click', ()=> { clockIn(); renderAll(); });
+document.getElementById('clockOutBtn').addEventListener('click', ()=> { clockOut(); renderAll(); });
+document.getElementById('addQuickActivity').addEventListener('click', addQuickActivity);
+document.getElementById('addActivity').addEventListener('click', addActivityFromForm);
+document.getElementById('addLeaveBtn').addEventListener('click', addLeave);
+document.getElementById('reqNotif').addEventListener('click', async ()=>{
+  if(!('Notification' in window)){ alert('Notifications not supported in this browser'); return; }
+  const res = await Notification.requestPermission();
+  alert('Notification permission: ' + res);
+});
+
+// Sync stats range selector
+document.getElementById('statsRange').addEventListener('change', (e) => {
+  document.getElementById('statsRangeChart').value = e.target.value;
+  renderStats();
+});
+
+/* Quick render on load */
+renderAll();
+
+/* Simple reminder scheduler */
+setInterval(checkReminders, 30*1000);
+let lastFired = {};
+function checkReminders(){
+  if(!('Notification' in window)) return;
+  if(Notification.permission !== 'granted') return;
+  const now = new Date();
+  const hhmm = String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
+  (state.settings.reminders || []).forEach(rem=>{
+    if(!rem) return;
+    if(rem !== hhmm) return;
+    const todayKey = dateKeyFromISO(now.toISOString());
+    const firedKey = todayKey + '::' + rem;
+    if(lastFired[firedKey]) return;
+    lastFired[firedKey] = true;
+    const clocks = state.clocks[todayKey] || [];
+    const last = clocks[clocks.length-1];
+    let body = '';
+    if(!last || last.out) body = 'You have not Clocked In today. Tap to open.';
+    else if(last && !last.out) body = 'You are still Clocked In. Remember to Clock Out when finished.';
+    else body = 'Reminder';
+    new Notification('FocusFlow Reminder', {body});
+    console.log('Reminder:', body);
+  });
+}
+
+/* Auto-save settings */
+(function(){
+  state.settings = state.settings || defaultState.settings;
+})();
+
+/* DayLog sub-navigation */
+document.getElementById('daylog-nav').addEventListener('click', (e) => {
+    if (e.target.matches('.view-btn')) {
+        switchDayLogTab(e.target.dataset.view);
+    }
+});
+
+/* Keyboard shortcuts */
+document.addEventListener('keydown', (e)=>{
+  const target = e.target;
+  const isInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT';
+  
+  if (isInput) {
+    return; // Do not trigger shortcuts if the user is typing in an input field
+  }
+
+  if(e.key==='1') switchTab('dashboard');
+  if(e.key==='2') switchTab('daylog');
+  if(e.key==='3') switchTab('evolve');
+  if(e.key==='4') switchTab('finance');
+  if(e.key==='5') switchTab('settings');
+});
+
+/* Periodic save */
+setInterval(saveState, 30*1000);
+
+</script>
+<script>
+/* ===========================================================
+   Finance Dashboard: Monthly Trend (Last 6 Months)
+   Enhanced Tooltip with Net Savings Indicator
+   =========================================================== */
+
+function renderMonthlyTrend() {
+  const trendContainer = document.getElementById('monthlyTrend');
+  if (!trendContainer) return;
+
+  const transactions = state.finance?.transactions || [];
+
+  if (transactions.length === 0) {
+    trendContainer.innerHTML = `<div class="muted small">No transactions recorded yet.</div>`;
+    return;
+  }
+
+  // --- Build last 6 months ---
+  const now = new Date();
+  const months = [];
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    months.push({
+      key: d.toISOString().slice(0, 7),
+      label: d.toLocaleString('default', { month: 'short' }) + ' ' + d.getFullYear().toString().slice(-2),
+      income: 0,
+      expense: 0,
+    });
+  }
+
+  // --- Aggregate transactions ---
+  for (const tx of transactions) {
+    if (!tx.date || !tx.amount) continue;
+    const txDate = new Date(tx.date);
+    if (isNaN(txDate)) continue;
+    const key = txDate.toISOString().slice(0, 7);
+    const m = months.find(m => m.key === key);
+    if (!m) continue;
+    if (tx.type === 'income') m.income += parseFloat(tx.amount);
+    else if (tx.type === 'expense') m.expense += parseFloat(tx.amount);
+  }
+
+  const maxValue = Math.max(...months.map(m => Math.max(m.income, m.expense)), 1);
+
+  // --- Create tooltip (once) ---
+  let tooltip = document.getElementById('trendTooltip');
+  if (!tooltip) {
+    tooltip = document.createElement('div');
+    tooltip.id = 'trendTooltip';
+    tooltip.style.cssText = `
+      position: fixed;
+      padding: 8px 10px;
+      background: rgba(34, 34, 34, 0.9);
+      color: #fff;
+      border-radius: 8px;
+      font-size: 0.8rem;
+      pointer-events: none;
+      z-index: 3000;
+      opacity: 0;
+      transition: opacity 0.2s ease;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+    `;
+    document.body.appendChild(tooltip);
+  }
+
+  // --- Render chart ---
+  trendContainer.innerHTML = `
+    <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:10px;align-items:end;height:180px;margin-top:10px;">
+      ${months
+        .map(
+          (m) => `
+          <div class="trend-month" 
+               data-month="${m.label}" 
+               data-income="${m.income}" 
+               data-expense="${m.expense}" 
+               style="text-align:center;position:relative;">
+            <div style="position:relative;height:140px;">
+              <div class="bar-expense" 
+                   style="position:absolute;bottom:0;width:40%;left:10%;background:#ef4444;height:${(m.expense / maxValue) * 100}%;border-radius:4px;"></div>
+              <div class="bar-income" 
+                   style="position:absolute;bottom:0;width:40%;right:10%;background:#22c55e;height:${(m.income / maxValue) * 100}%;border-radius:4px;"></div>
+            </div>
+            <div class="small-muted" style="margin-top:6px;">${m.label}</div>
+          </div>`
+        )
+        .join('')}
+    </div>
+    <div class="muted small" style="margin-top:6px;">Hover bars for exact values</div>
+  `;
+
+  // --- Add hover behavior ---
+  trendContainer.querySelectorAll('.trend-month').forEach(el => {
+    el.addEventListener('mousemove', e => {
+      const month = el.dataset.month;
+      const income = parseFloat(el.dataset.income);
+      const expense = parseFloat(el.dataset.expense);
+      const net = income - expense;
+      const netText = net >= 0
+        ? `<span style="color:#22c55e;">Net Savings: ₹${net.toLocaleString('en-IN')}</span>`
+        : `<span style="color:#ef4444;">Net Loss: ₹${Math.abs(net).toLocaleString('en-IN')}</span>`;
+
+      tooltip.innerHTML = `
+        <strong>${month}</strong><br>
+        Income: ₹${income.toLocaleString('en-IN')}<br>
+        Expense: ₹${expense.toLocaleString('en-IN')}<br>
+        ${netText}
+      `;
+
+      tooltip.style.left = e.pageX + 12 + 'px';
+      tooltip.style.top = e.pageY - 30 + 'px';
+      tooltip.style.opacity = '1';
+    });
+    el.addEventListener('mouseleave', () => {
+      tooltip.style.opacity = '0';
+    });
+  });
+}
+
+</script>
+</body>
+</html>
