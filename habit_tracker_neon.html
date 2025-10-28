@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Neon Discipline Arc — Habit Tracker</title>
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    :root{
+      --bg-1: #05020a; /* almost black */
+      --bg-2: #0b0b1a; /* deep navy */
+      --card: rgba(255,255,255,0.03);
+      --glass: rgba(255,255,255,0.03);
+      --neon: #7c5cff; /* purple */
+      --accent: #4dd0e1; /* cyan */
+      --muted: rgba(255,255,255,0.6);
+      --glass-border: rgba(124,92,255,0.15);
+    }
+
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
+      background: radial-gradient(1200px 600px at 10% 10%, rgba(124,92,255,0.08), transparent 10%),
+                  radial-gradient(900px 400px at 90% 90%, rgba(77,208,225,0.05), transparent 10%),
+                  linear-gradient(180deg,var(--bg-1),var(--bg-2));
+      color: #e6eef8;
+      padding:18px;
+    }
+
+    .app{
+      max-width:1200px;
+      margin:10px auto;
+      border-radius:14px;
+      overflow:hidden;
+      box-shadow: 0 10px 40px rgba(2,6,23,0.7), 0 0 40px rgba(124,92,255,0.06) inset;
+      border: 1px solid rgba(255,255,255,0.03);
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+    }
+
+    .topbar{
+      display:flex;align-items:center;gap:12px;justify-content:space-between;padding:18px 22px;background:linear-gradient(90deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));border-bottom:1px solid var(--glass-border);
+    }
+
+    .title{
+      display:flex;gap:12px;align-items:center;
+    }
+
+    .logo{
+      width:54px;height:54px;border-radius:10px;background:linear-gradient(135deg,var(--neon),var(--accent));display:flex;align-items:center;justify-content:center;font-weight:700;color:#07020b;box-shadow:0 6px 24px rgba(124,92,255,0.18);
+    }
+
+    h1{font-size:20px;margin:0}
+    .sub{color:var(--muted);font-size:13px}
+
+    .controls{
+      display:flex;gap:8px;align-items:center
+    }
+
+    select,input[type='number']{background:transparent;border:1px solid rgba(255,255,255,0.06);color:inherit;padding:8px 10px;border-radius:10px;outline:none}
+    .btn{padding:10px 14px;border-radius:10px;border:1px solid rgba(255,255,255,0.04);cursor:pointer;background:linear-gradient(180deg, rgba(255,255,255,0.02), transparent);}
+    .btn.neon{box-shadow:0 6px 18px rgba(124,92,255,0.12);border:1px solid rgba(124,92,255,0.18)}
+
+    .main{display:grid;grid-template-columns:1fr 380px;gap:18px;padding:20px}
+
+    .card{background:var(--card);padding:16px;border-radius:12px;border:1px solid var(--glass-border);backdrop-filter: blur(6px)}
+
+    /* left: tracker */
+    .tracker{overflow:auto}
+    table{width:100%;border-collapse:collapse;min-width:900px}
+    th,td{padding:8px 6px;text-align:center;border:1px solid rgba(255,255,255,0.03);font-size:13px}
+    th.protocol{position:sticky;left:0;background:linear-gradient(90deg, rgba(255,255,255,0.01), transparent);z-index:3;text-align:left;padding-left:14px}
+    td.protocol{background:transparent;text-align:left;padding-left:12px}
+
+    thead th{background:transparent;color:var(--muted);font-weight:600}
+
+    .day-cell{min-width:36px;height:32px;border-radius:6px;cursor:pointer;transition:all .18s ease;}
+    .day-cell:hover{transform:translateY(-3px);box-shadow:0 6px 18px rgba(124,92,255,0.06)}
+    .day-cell.checked{background:linear-gradient(90deg,var(--neon),var(--accent));color:#07020b;font-weight:700}
+
+    .total-row{background:linear-gradient(90deg, rgba(124,92,255,0.04), rgba(77,208,225,0.02));font-weight:700}
+
+    /* right: sidebar */
+    .sidebar .stat{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-radius:10px;margin-bottom:10px}
+    .small{font-size:12px;color:var(--muted)}
+    .arc-title{display:flex;gap:8px;align-items:center}
+    .arc-input{flex:1;background:transparent;border:1px dashed rgba(255,255,255,0.04);padding:8px;border-radius:8px;color:inherit}
+
+    .section-toggle{display:flex;justify-content:space-between;align-items:center;padding:10px;border-radius:8px;margin-bottom:10px;border:1px solid rgba(255,255,255,0.02)}
+
+    /* mood select small */
+    .mood-dropdown{background:transparent;border:none;color:inherit;font-size:16px}
+
+    /* small controls */
+    .muted{color:var(--muted);font-size:13px}
+
+    /* footer */
+    .footer{padding:16px;border-top:1px solid rgba(255,255,255,0.02);display:flex;justify-content:space-between;align-items:center}
+
+    /* responsive */
+    @media (max-width:980px){
+      .main{grid-template-columns:1fr}
+      table{min-width:700px}
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="topbar">
+      <div class="title">
+        <div class="logo">ND</div>
+        <div>
+          <h1>Neon Discipline Arc</h1>
+          <div class="sub">Blue / Purple Neon dark mode — editable monthly arcs</div>
+        </div>
+      </div>
+
+      <div class="controls">
+        <label class="muted">Month</label>
+        <select id="monthSelect"></select>
+        <label class="muted">Year</label>
+        <select id="yearSelect"></select>
+        <button class="btn neon" id="saveBtn">Save</button>
+        <button class="btn" id="exportBtn">Export</button>
+        <button class="btn" id="importBtn">Import</button>
+        <input id="importFile" type="file" accept="application/json" style="display:none" />
+      </div>
+    </div>
+
+    <div class="main">
+      <div class="card tracker">
+        <div style="display:flex;gap:12px;align-items:center;margin-bottom:12px">
+          <div class="section-toggle" style="flex:1">
+            <div style="display:flex;gap:8px;align-items:center">
+              <strong>Protocols</strong>
+              <span class="small">(tap days to mark)</span>
+            </div>
+            <div class="small">Auto-save per month · Editable arc titles</div>
+          </div>
+
+          <div style="display:flex;gap:8px">
+            <button class="btn" id="collapseHabits">Toggle</button>
+          </div>
+        </div>
+
+        <div id="habitsSection">
+          <div style="overflow:auto">
+            <table id="protocolTable">
+              <thead>
+                <tr>
+                  <th class="protocol">Protocol</th>
+                  <!-- days 1..31 will be injected -->
+                </tr>
+              </thead>
+              <tbody id="protocolBody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div style="height:14px"></div>
+
+        <div class="section-toggle">
+          <strong>Sleep Tracker</strong>
+          <div class="small">Visual: smooth line graph</div>
+        </div>
+
+        <div id="sleepSection">
+          <div style="display:flex;gap:12px;align-items:center;margin-bottom:8px">
+            <div class="small">Select sleep hours per day (hover shows hours)</div>
+            <button class="btn" id="collapseSleep">Toggle</button>
+          </div>
+
+          <div style="display:flex;gap:14px;align-items:flex-start">
+            <div style="flex:1;overflow:auto">
+              <table id="sleepTable">
+                <thead><tr><th class="protocol">Hours</th></tr></thead>
+                <tbody id="sleepBody"></tbody>
+              </table>
+            </div>
+            <div style="width:420px">
+              <canvas id="sleepChart" width="420" height="220"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <div style="height:14px"></div>
+
+        <div class="section-toggle">
+          <strong>Mood</strong>
+          <div class="small">Quick-select per day</div>
+        </div>
+
+        <div id="moodSection">
+          <div style="overflow:auto">
+            <table id="moodTable"><thead><tr><th class="protocol">Mood</th></tr></thead><tbody id="moodBody"></tbody></table>
+          </div>
+        </div>
+      </div>
+
+      <div class="card sidebar">
+        <div class="stat">
+          <div>
+            <div class="small">Arc / Chapter Title</div>
+            <div class="arc-title">
+              <input id="arcTitle" class="arc-input" placeholder="Click to name this month (e.g. Winter Arc)" />
+            </div>
+          </div>
+        </div>
+
+        <div class="stat">
+          <div>
+            <div class="small">Summary</div>
+            <div style="font-weight:700;font-size:20px" id="totalPoints">0</div>
+            <div class="muted">Total Points</div>
+          </div>
+        </div>
+
+        <div class="stat">
+          <div>
+            <div class="small">Completion Rate</div>
+            <div style="font-weight:700;font-size:20px" id="completionRate">0%</div>
+            <div class="muted">Across all protocols</div>
+          </div>
+        </div>
+
+        <div class="stat">
+          <div>
+            <div class="small">Current Streak</div>
+            <div style="font-weight:700;font-size:20px" id="currentStreak">0</div>
+            <div class="muted">Days meeting 70% of protocols</div>
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+        <div style="display:flex;gap:8px;flex-direction:column">
+          <button class="btn neon" id="resetBtn">Reset Month</button>
+          <button class="btn" id="clearAllBtn">Reset All Data</button>
+        </div>
+
+        <div style="height:16px"></div>
+
+        <div class="muted">Pro-tip: Click the arc title to rename this month. All edits save automatically for the selected month & year.</div>
+      </div>
+    </div>
+
+    <div class="footer">
+      <div class="small">Neon Discipline Arc — Auto-saves to local device</div>
+      <div class="small">Built for you ✨</div>
+    </div>
+  </div>
+
+  <script>
+    // --- Data & config (keep your current protocols) ---
+    const protocols = [
+      'No fast food',
+      'Under 2 social media',
+      'No blaming',
+      'Go to bed before 11PM',
+      'Gym/workout/walk',
+      'Least 2 hours of deep learning',
+      'No fapping',
+      '30 mins of meditation',
+      'Realize one fact',
+      '0.5L waters'
+    ];
+
+    // sleep options mapped to hours for chart
+    const sleepOptions = [9, 8, 7, 6, 5, 4, 3];
+    const sleepLabels = ['9+ HRS','8 HRS','7 HRS','6 HRS','5 HRS','4 HRS','3 HRS'];
+
+    const moodOptions = [
+      {emoji:'😊',label:'Happy'},
+      {emoji:'😄',label:'Excited'},
+      {emoji:'😌',label:'Calm'},
+      {emoji:'😐',label:'Neutral'},
+      {emoji:'😔',label:'Sad'},
+      {emoji:'😤',label:'Frustrated'},
+      {emoji:'😰',label:'Anxious'},
+      {emoji:'😴',label:'Tired'},
+      {emoji:'🤗',label:'Grateful'},
+      {emoji:'💪',label:'Motivated'}
+    ];
+
+    // --- Utilities ---
+    function daysInMonth(year, monthIndex){
+      return new Date(year, monthIndex+1, 0).getDate();
+    }
+
+    function keyFor(monthIndex, year){
+      return `habittracker_${year}_${String(monthIndex+1).padStart(2,'0')}`;
+    }
+
+    // default structure for a month
+    function emptyData(days){
+      const d = { protocols:{}, sleep:{}, mood:{}, arcTitle: ''};
+      protocols.forEach((_,i)=> d.protocols[i] = {});
+      for(let day=1; day<=days; day++){
+        d.sleep[day] = null;
+        d.mood[day] = null;
+      }
+      return d;
+    }
+
+    // --- DOM refs ---
+    const monthSelect = document.getElementById('monthSelect');
+    const yearSelect = document.getElementById('yearSelect');
+    const protocolBody = document.getElementById('protocolBody');
+    const sleepBody = document.getElementById('sleepBody');
+    const moodBody = document.getElementById('moodBody');
+    const arcTitle = document.getElementById('arcTitle');
+    const totalPointsEl = document.getElementById('totalPoints');
+    const completionRateEl = document.getElementById('completionRate');
+    const currentStreakEl = document.getElementById('currentStreak');
+    const saveBtn = document.getElementById('saveBtn');
+    const exportBtn = document.getElementById('exportBtn');
+    const importBtn = document.getElementById('importBtn');
+    const importFile = document.getElementById('importFile');
+    const resetBtn = document.getElementById('resetBtn');
+    const clearAllBtn = document.getElementById('clearAllBtn');
+    const collapseHabits = document.getElementById('collapseHabits');
+    const collapseSleep = document.getElementById('collapseSleep');
+
+    // state
+    let state = { month:0, year: new Date().getFullYear(), data: null };
+
+    // --- init month/year selects ---
+    function initMonthYear(){
+      const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      monthNames.forEach((m,i)=>{
+        const o = document.createElement('option'); o.value = i; o.textContent = m; monthSelect.appendChild(o);
+      });
+
+      const currentYear = new Date().getFullYear();
+      for(let y=currentYear-3; y<=currentYear+3; y++){
+        const o=document.createElement('option'); o.value=y; o.textContent=y; yearSelect.appendChild(o);
+      }
+
+      monthSelect.value = new Date().getMonth();
+      yearSelect.value = new Date().getFullYear();
+
+      monthSelect.onchange = ()=> loadSelectedMonth();
+      yearSelect.onchange = ()=> loadSelectedMonth();
+    }
+
+    // --- load / save ---
+    function loadSelectedMonth(){
+      state.month = parseInt(monthSelect.value,10);
+      state.year = parseInt(yearSelect.value,10);
+      const days = daysInMonth(state.year, state.month);
+      const key = keyFor(state.month, state.year);
+      const raw = localStorage.getItem(key);
+      if(raw){
+        try{ state.data = JSON.parse(raw); }
+        catch(e){ state.data = emptyData(days); }
+      } else {
+        state.data = emptyData(days);
+        // generate an auto name if empty
+        state.data.arcTitle = generateDefaultArcName(state.month, state.year);
+      }
+      renderAll();
+    }
+
+    function saveCurrent(){
+      const key = keyFor(state.month, state.year);
+      localStorage.setItem(key, JSON.stringify(state.data));
+    }
+
+    function exportCurrent(){
+      const key = keyFor(state.month, state.year);
+      const payload = { key, data: state.data };
+      const blob = new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href=url; a.download = `habit-${key}.json`; a.click(); URL.revokeObjectURL(url);
+    }
+
+    function importFileHandler(file){
+      const reader = new FileReader();
+      reader.onload = (e)=>{
+        try{
+          const payload = JSON.parse(e.target.result);
+          if(payload.key && payload.data){
+            localStorage.setItem(payload.key, JSON.stringify(payload.data));
+            alert('Imported to localStorage for ' + payload.key);
+            loadSelectedMonth();
+          } else {
+            alert('Invalid file format');
+          }
+        }catch(err){ alert('Could not parse file'); }
+      };
+      reader.readAsText(file);
+    }
+
+    // --- rendering ---
+    function renderAll(){
+      const days = daysInMonth(state.year, state.month);
+      renderProtocolTable(days);
+      renderSleepTable(days);
+      renderMoodTable(days);
+      arcTitle.value = state.data.arcTitle || '';
+      updateStats();
+      renderSleepChart();
+      saveCurrent();
+    }
+
+    function renderProtocolTable(days){
+      // header days
+      const theadRow = document.querySelector('#protocolTable thead tr');
+      // clear existing day headers
+      while(theadRow.children.length>1) theadRow.removeChild(theadRow.lastChild);
+      for(let d=1; d<=days; d++){
+        const th=document.createElement('th'); th.textContent=d; theadRow.appendChild(th);
+      }
+
+      // body
+      protocolBody.innerHTML='';
+      protocols.forEach((p,pi)=>{
+        const tr=document.createElement('tr');
+        const tdLabel=document.createElement('td'); tdLabel.className='protocol'; tdLabel.textContent=p; tr.appendChild(tdLabel);
+        for(let d=1; d<=days; d++){
+          const td=document.createElement('td'); td.className='day-cell';
+          if(state.data.protocols[pi] && state.data.protocols[pi][d]) td.classList.add('checked');
+          td.onclick = ()=>{ toggleProtocol(pi,d); };
+          tr.appendChild(td);
+        }
+        protocolBody.appendChild(tr);
+      });
+
+      // total row
+      const trTot=document.createElement('tr'); trTot.className='total-row';
+      const tdLbl=document.createElement('td'); tdLbl.textContent='Total Points'; tdLbl.className='protocol'; trTot.appendChild(tdLbl);
+      for(let d=1; d<=days; d++){
+        const td=document.createElement('td'); td.id=`total-${d}`; td.textContent = calculateDayTotal(d); trTot.appendChild(td);
+      }
+      protocolBody.appendChild(trTot);
+    }
+
+    function renderSleepTable(days){
+      // header for sleep table shows days as columns in a single row (we keep structure similar to original)
+      const thead = document.querySelector('#sleepTable thead tr');
+      while(thead.children.length>1) thead.removeChild(thead.lastChild);
+      for(let d=1; d<=days; d++){ const th=document.createElement('th'); th.textContent=d; thead.appendChild(th); }
+
+      sleepBody.innerHTML='';
+      // for each sleep option, show a row with selectable cells
+      sleepLabels.forEach((label, si)=>{
+        const tr=document.createElement('tr');
+        const tdLabel=document.createElement('td'); tdLabel.className='protocol'; tdLabel.textContent=label; tr.appendChild(tdLabel);
+        for(let d=1; d<=days; d++){
+          const td=document.createElement('td'); td.className='sleep-cell';
+          if(state.data.sleep[d]===si) td.classList.add('selected');
+          td.title = label;
+          td.onclick = ()=>{ selectSleep(d, si); };
+          tr.appendChild(td);
+        }
+        sleepBody.appendChild(tr);
+      });
+    }
+
+    function renderMoodTable(days){
+      const thead = document.querySelector('#moodTable thead tr');
+      while(thead.children.length>1) thead.removeChild(thead.lastChild);
+      for(let d=1; d<=days; d++){ const th=document.createElement('th'); th.textContent=d; thead.appendChild(th); }
+
+      moodBody.innerHTML='';
+      const tr=document.createElement('tr');
+      const tdLabel=document.createElement('td'); tdLabel.className='protocol'; tdLabel.textContent='Mood'; tr.appendChild(tdLabel);
+      for(let d=1; d<=days; d++){
+        const td=document.createElement('td'); td.className='mood-cell';
+        const select=document.createElement('select'); select.className='mood-dropdown';
+        const defaultOpt=document.createElement('option'); defaultOpt.value=''; defaultOpt.textContent='-'; select.appendChild(defaultOpt);
+        moodOptions.forEach((m,mi)=>{ const opt=document.createElement('option'); opt.value=mi; opt.textContent=m.emoji; opt.title=m.label; if(state.data.mood[d]===mi) opt.selected=true; select.appendChild(opt); });
+        select.onchange = (e)=>{ state.data.mood[d] = e.target.value === '' ? null : parseInt(e.target.value,10); saveCurrent(); };
+        td.appendChild(select);
+        tr.appendChild(td);
+      }
+      moodBody.appendChild(tr);
+    }
+
+    // --- interactions ---
+    function toggleProtocol(pi,d){
+      state.data.protocols[pi][d] = !state.data.protocols[pi][d];
+      renderAll();
+    }
+
+    function selectSleep(d, si){
+      // toggle selection
+      if(state.data.sleep[d] === si) state.data.sleep[d] = null; else state.data.sleep[d] = si;
+      renderAll();
+    }
+
+    arcTitle.addEventListener('change', ()=>{ state.data.arcTitle = arcTitle.value; saveCurrent(); });
+    arcTitle.addEventListener('blur', ()=>{ state.data.arcTitle = arcTitle.value; saveCurrent(); });
+
+    saveBtn.onclick = ()=>{ saveCurrent(); alert('Saved for ' + keyFor(state.month,state.year)); };
+    exportBtn.onclick = ()=> exportCurrent();
+    importBtn.onclick = ()=> importFile.click();
+    importFile.onchange = (e)=>{ if(e.target.files && e.target.files[0]) importFileHandler(e.target.files[0]); };
+
+    resetBtn.onclick = ()=>{
+      if(confirm('Reset data for this month?')){
+        const days = daysInMonth(state.year,state.month);
+        state.data = emptyData(days);
+        state.data.arcTitle = generateDefaultArcName(state.month,state.year);
+        renderAll();
+      }
+    };
+
+    clearAllBtn.onclick = ()=>{
+      if(confirm('Reset ALL saved months? This will clear localStorage entries created by this tracker.')){
+        // remove keys that match prefix
+        Object.keys(localStorage).forEach(k=>{ if(k.startsWith('habittracker_')) localStorage.removeItem(k); });
+        loadSelectedMonth();
+      }
+    };
+
+    collapseHabits.onclick = ()=>{ const s=document.getElementById('habitsSection'); s.style.display = s.style.display==='none' ? '' : 'none'; };
+    collapseSleep.onclick = ()=>{ const s=document.getElementById('sleepSection'); s.style.display = s.style.display==='none' ? '' : 'none'; };
+
+    // --- stats ---
+    function calculateDayTotal(d){
+      let total=0; protocols.forEach((_,i)=>{ if(state.data.protocols[i] && state.data.protocols[i][d]) total++; }); return total;
+    }
+
+    function updateStats(){
+      const days = daysInMonth(state.year,state.month);
+      let totalPoints=0; let checkedCount=0; let totalCells = protocols.length * days; let bestDayScore=0; let bestDayNum='-';
+      for(let d=1; d<=days; d++){
+        const dt = calculateDayTotal(d); totalPoints += dt; if(dt>bestDayScore){ bestDayScore=dt; bestDayNum=d; }
+      }
+      protocols.forEach((_,i)=>{ Object.keys(state.data.protocols[i]).forEach(day=>{ if(state.data.protocols[i][day]) checkedCount++; }); });
+      const completionRate = totalCells>0? Math.round((checkedCount/totalCells)*100) : 0;
+      const streak = calculateStreak(days);
+      totalPointsEl.textContent = totalPoints;
+      completionRateEl.textContent = completionRate + '%';
+      currentStreakEl.textContent = streak;
+      // update totals in table
+      for(let d=1; d<=days; d++){ const el=document.getElementById(`total-${d}`); if(el) el.textContent=calculateDayTotal(d); }
+    }
+
+    function calculateStreak(days){
+      let streak=0;
+      for(let d=days; d>=1; d--){ if(calculateDayTotal(d) >= Math.ceil(protocols.length*0.7)) streak++; else break; }
+      return streak;
+    }
+
+    // --- arc name generator (auto fallback) ---
+    function generateDefaultArcName(monthIndex, year){
+      const m = ['Winter Arc','Foundation Chapter','Spring Reboot','Focus Arc','Growth Chapter','Summer Forge','Midyear Reset','Harvest Arc','Autumn Focus','Reflection Arc','November Forge','Year End Review'];
+      return `${m[monthIndex] || 'Monthly Arc'} ${year}`;
+    }
+
+    // --- Sleep Chart (Chart.js) ---
+    let sleepChart = null;
+    function renderSleepChart(){
+      const days = daysInMonth(state.year,state.month);
+      const labels = Array.from({length:days},(_,i)=>i+1);
+      const data = labels.map(d => {
+        const si = state.data.sleep[d];
+        return si===null ? null : sleepOptions[si];
+      });
+
+      const ctx = document.getElementById('sleepChart').getContext('2d');
+      if(sleepChart) sleepChart.destroy();
+      sleepChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [{
+            label: 'Sleep (hrs)',
+            data,
+            spanGaps: true,
+            tension: 0.4,
+            pointRadius: 4,
+            pointHoverRadius: 6,
+            borderWidth: 2,
+            borderColor: 'rgba(124,92,255,0.95)',
+            backgroundColor: 'rgba(124,92,255,0.12)',
+            pointBackgroundColor: 'rgba(77,208,225,1)',
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            y: { beginAtZero:true, suggestedMax:10, ticks:{color:'rgba(230,238,248,0.9)'} },
+            x: { ticks:{color:'rgba(230,238,248,0.7)'} }
+          },
+          plugins: { legend:{display:false}, tooltip:{mode:'index',intersect:false} }
+        }
+      });
+    }
+
+    // --- initial boot ---
+    initMonthYear(); loadSelectedMonth();
+
+    // autosave on unload
+    window.addEventListener('beforeunload', ()=> saveCurrent());
+
+    // also save when clicking anywhere (helps mobile)
+    document.addEventListener('click', ()=> saveCurrent());
+  </script>
+</body>
+</html>
